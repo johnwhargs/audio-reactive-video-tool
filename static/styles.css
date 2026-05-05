@@ -102,7 +102,7 @@ input[type=file] { display: none; }
 .sp-btn { width: 100%; }
 .sp-connected { background: #1a2f1e !important; color: #1db954 !important; border-color: #1db954 !important; }
 .sp-info { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 20px; }
-.sp-art { width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0; }
+.sp-art { width: 56px; height: 56px; border-radius: 4px; flex-shrink: 0; }
 .sp-track { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-features { font-size: 10px; color: #666; margin-top: 3px; }
 .sp-hint { font-size: 10px; color: #1db954; margin-top: 4px; line-height: 1.4; }

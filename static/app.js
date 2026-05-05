@@ -1545,7 +1545,7 @@ function updateSpotifyUI(track) {
     if (infoRow) infoRow.style.display = 'flex';
     if (info) info.textContent = name + ' — ' + artist;
     if (art && track.album && track.album.images && track.album.images.length) {
-      art.src = track.album.images[track.album.images.length - 1].url;
+      art.src = (track.album.images[1] || track.album.images[0]).url;
       art.style.display = 'block';
     }
   } else {
