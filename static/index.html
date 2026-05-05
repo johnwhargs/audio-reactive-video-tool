@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio → Video</title>
+<script>if(typeof globalThis.global==='undefined')globalThis.global=globalThis;</script>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js" defer></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" defer></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="toggleBar">
+  <button class="tb-btn" id="fullscreenBtn" title="fullscreen (F)">&#x26F6;</button>
+  <button class="tb-btn" id="hideBtn" title="hide (H)">&#x2715; hide</button>
+</div>
+<div id="toast">Press <kbd class="toast-kbd">H</kbd> to show</div>
+
+<div class="app">
+  <div class="tabbar">
+    <div class="tab active" id="tab-scrub" data-tab="scrub">scrub</div>
+    <div class="tab" id="tab-depth" data-tab="depth">depth composite</div>
+    <div class="tab" id="tab-layers" data-tab="layers">layers</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ SCRUB TAB ═══════ -->
+  <div class="workspace" id="ws-scrub">
+    <div class="view-area">
+      <video id="vid" preload="auto" playsinline muted></video>
+      <div class="unlock-overlay" id="unlockOverlay">
+        <div class="unlock-text">click to enable scrubbing</div>
+        <button class="unlock-btn" id="unlockBtn">unlock</button>
+      </div>
+    </div>
+    <div class="sidebar" id="sidebar">
+
+      <div class="section">
+        <div class="stitle">Video</div>
+        <button class="upload-btn" id="vidBtn">+ load video</button>
+        <input type="file" id="vidInput" accept="video/*">
+        <div id="processBox">
+          <div class="process-btns">
+            <button class="btn active process-btn-main" id="processBtn">&#9881; clean for scrub</button>
+            <button class="btn process-btn-skip" id="skipProcessBtn">skip</button>
+          </div>
+          <div class="process-bar">
+            <div id="processProgress"></div>
+          </div>
+          <div id="processStatus">forces all-keyframe H.264 · enables frame-perfect scrubbing</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Audio</div>
+        <div class="status" id="audioStatus">no audio loaded</div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn" id="audioBtn">mp3</button>
+          <input type="file" id="audioInput" accept="audio/*">
+          <button class="btn disabled" id="playBtn">play</button>
+          <button class="btn" id="micBtn">mic</button>
+          <button class="btn" id="sysBtn">sys</button>
+        </div>
+        <div class="sr sr-mb">
+          <span class="sl">volume</span>
+          <input type="range" min="0" max="100" value="100" step="1" id="sVolume">
+          <span class="sv" id="vVolume">100%</span>
+        </div>
+        <div class="vu" id="vu">
+          <div class="vu-bar" id="vb0"></div><div class="vu-bar" id="vb1"></div><div class="vu-bar" id="vb2"></div><div class="vu-bar" id="vb3"></div>
+          <div class="vu-bar" id="vb4"></div><div class="vu-bar" id="vb5"></div><div class="vu-bar" id="vb6"></div><div class="vu-bar" id="vb7"></div>
+          <div class="vu-bar" id="vb8"></div><div class="vu-bar" id="vb9"></div><div class="vu-bar" id="vba"></div><div class="vu-bar" id="vbb"></div>
+          <div class="vu-bar" id="vbc"></div><div class="vu-bar" id="vbd"></div><div class="vu-bar" id="vbe"></div><div class="vu-bar" id="vbf"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Timeline</span><span class="stitle-hint">scroll=zoom · drag markers</span></div>
+        <canvas class="tl-cv" id="tlAudio" height="36"></canvas>
+        <div class="waveform-label">waveform</div>
+        <canvas class="tl-cv" id="tlVideo" height="20"></canvas>
+        <div class="tl-times">
+          <span id="tlStart">0:00</span><span id="tlMid">—</span><span id="tlEnd">—</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Beat tracker</span><span class="bt-status" id="btStatus">waiting</span></div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-num" id="btBPM">—</div><div class="stat-lbl">bpm</div></div>
+          <div class="stat-box"><div class="stat-num" id="btEnergy">—</div><div class="stat-lbl">energy</div></div>
+          <div class="stat-box"><div class="stat-num" id="btDynamic">—</div><div class="stat-lbl">range</div></div>
+        </div>
+        <div class="beat-row">
+          <canvas id="beatRing" width="40" height="40"></canvas>
+          <div class="beat-phase-wrap">
+            <div class="beat-phase-label">beat phase</div>
+            <div class="beat-phase-bar"><div id="beatPhasebar"></div></div>
+          </div>
+        </div>
+        <div class="at-row">
+          <div class="at-b" id="atGain">gain —</div><div class="at-b" id="atGate">gate —</div>
+          <div class="at-b" id="atComp">comp —</div><div class="at-b" id="atMode">mode —</div>
+        </div>
+        <div class="sr"><span class="sl">beat sync</span><input type="range" min="0" max="10" value="5" step="1" id="sBeatSync"><span class="sv" id="vBeatSync">5</span></div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Frequency</div>
+        <div class="filter-row" id="filterRow">
+          <button class="filter-btn active" data-filter="all">all</button>
+          <button class="filter-btn" data-filter="sub">sub</button>
+          <button class="filter-btn" data-filter="bass">bass</button>
+          <button class="filter-btn" data-filter="mids">mids</button>
+          <button class="filter-btn" data-filter="high">highs</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Signal</div>
+        <div class="sr"><span class="sl">gain</span><input type="range" min="0.5" max="10" value="3" step="0.5" id="sGain"><span class="sv" id="vGain">3</span></div>
+        <div class="sr"><span class="sl">gate</span><input type="range" min="0" max="80" value="10" step="1" id="sGate"><span class="sv" id="vGate">10</span></div>
+        <div class="sr"><span class="sl">compress</span><input type="range" min="1" max="8" value="2" step="0.5" id="sComp"><span class="sv" id="vComp">2</span></div>
+        <div class="sr"><span class="sl">attack</span><input type="range" min="1" max="20" value="2" step="1" id="sAttack"><span class="sv" id="vAttack">2</span></div>
+        <div class="sr"><span class="sl">release</span><input type="range" min="1" max="20" value="12" step="1" id="sRelease"><span class="sv" id="vRelease">12</span></div>
+        <div class="gmeter"><div class="gfill" id="gainFill"></div></div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Amplitude</div>
+        <div class="amp-row"><span class="amp-num" id="ampNum">0</span><span class="amp-unit">/ 255</span></div>
+        <div class="gmeter"><div class="gfill" id="gainFill2"></div></div>
+        <div class="scrub-bar"><div class="scrub-fill" id="scrubFill"></div><div class="scrub-head" id="scrubHead"></div></div>
+        <div class="time-disp" id="timeDisplay">0:00 / 0:00</div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Mode</div>
+        <div class="mode-row" id="modeRow">
+          <button class="mode-btn active" data-mode="scrub">scrub</button>
+          <button class="mode-btn" data-mode="pingpong">ping-pong</button>
+          <button class="mode-btn" data-mode="freeze">freeze</button>
+        </div>
+        <div class="hint" id="modeDesc">amplitude → position. quiet=start, loud=end.</div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Video range</div>
+        <div class="sr"><span class="sl">start</span><input type="range" min="0" max="100" value="0" step="1" id="sVidStart"><span class="sv" id="vVidStart">0%</span></div>
+        <div class="sr"><span class="sl">end</span><input type="range" min="0" max="100" value="100" step="1" id="sVidEnd"><span class="sv" id="vVidEnd">100%</span></div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Keep alive</span><span class="alive-indicators"><span class="indicator" id="flickerInd">&#9675; flicker</span><span class="indicator" id="aliveInd">&#9679; idle</span></span></div>
+        <div class="sr"><span class="sl">alive</span><input type="range" min="0" max="10" value="3" step="1" id="sAlive"><span class="sv" id="vAlive">3</span></div>
+        <div class="sr"><span class="sl">lfo speed</span><input type="range" min="1" max="20" value="5" step="1" id="sLFO"><span class="sv" id="vLFO">5</span></div>
+        <div class="sr"><span class="sl">lfo depth</span><input type="range" min="0" max="10" value="3" step="1" id="sLFODepth"><span class="sv" id="vLFODepth">3</span></div>
+        <div class="sr"><span class="sl">drift</span><input type="range" min="1" max="20" value="5" step="1" id="sDrift"><span class="sv" id="vDrift">5</span></div>
+        <div class="sr"><span class="sl">stuck after</span><input type="range" min="1" max="10" value="3" step="1" id="sStuck"><span class="sv" id="vStuck">3s</span></div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Bake</span><span class="rec-status" id="recInd">ready</span></div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn" id="bakeBtn">&#9679; record</button>
+          <button class="btn disabled" id="stopBakeBtn">&#9632; stop</button>
+        </div>
+        <div class="gmeter"><div class="gfill bake-fill-red" id="bakeProgress"></div></div>
+        <div class="hint">realtime WebM · convert with ffmpeg -i file.webm out.mp4</div>
+      </div>
+
+    </div><!-- /sidebar -->
+  </div><!-- /ws-scrub -->
+
+  <!-- ═══════════════════════════════════════ DEPTH TAB ═══════ -->
+  <div class="workspace" id="ws-depth">
+    <div class="view-area">
+      <canvas id="depthCanvas"></canvas>
+    </div>
+    <div class="sidebar" id="sidebarDepth">
+
+      <div class="section">
+        <div class="stitle">Layer stack</div>
+        <div class="layer-stack">
+          <div class="layer-row"><div class="layer-dot dot-source2"></div><span class="layer-name">source 2</span><span class="layer-status" id="dOverlay2Status">not loaded</span></div>
+          <div class="layer-row"><div class="layer-dot dot-depth2"></div><span class="layer-name">depth 2</span><span class="layer-status" id="dDepth2Status">not loaded</span></div>
+          <div class="layer-row"><div class="layer-dot dot-source1"></div><span class="layer-name">source 1</span><span class="layer-status" id="dOverlayStatus">not loaded</span></div>
+          <div class="layer-row"><div class="layer-dot dot-depth1"></div><span class="layer-name">depth 1</span><span class="layer-status" id="dDepthStatus">not loaded</span></div>
+          <div class="layer-row"><div class="layer-dot dot-bg"></div><span class="layer-name">background</span><span class="layer-status" id="dBgStatus">not loaded</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Audio</div>
+        <div class="status" id="dAudioStatus">shared with scrub tab</div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn" id="dAudioBtn">load mp3</button>
+          <input type="file" id="dAudioInput" accept="audio/*">
+          <button class="btn" id="dPlayBtn">play</button>
+          <button class="btn" id="dMicBtn">mic</button>
+          <button class="btn" id="dSysBtn">sys</button>
+        </div>
+        <div class="vu d-vu" id="dVu">
+          <div class="vu-bar" id="dvb0"></div><div class="vu-bar" id="dvb1"></div>
+          <div class="vu-bar" id="dvb2"></div><div class="vu-bar" id="dvb3"></div>
+          <div class="vu-bar" id="dvb4"></div><div class="vu-bar" id="dvb5"></div>
+          <div class="vu-bar" id="dvb6"></div><div class="vu-bar" id="dvb7"></div>
+          <div class="vu-bar" id="dvb8"></div><div class="vu-bar" id="dvb9"></div>
+          <div class="vu-bar" id="dvba"></div><div class="vu-bar" id="dvbb"></div>
+          <div class="vu-bar" id="dvbc"></div><div class="vu-bar" id="dvbd"></div>
+          <div class="vu-bar" id="dvbe"></div><div class="vu-bar" id="dvbf"></div>
+        </div>
+        <div class="d-amp-row">
+          <span class="d-amp-num" id="dAmpNum">0</span>
+          <span class="d-amp-unit">/ 255</span>
+          <div class="d-amp-bar"><div class="gmeter"><div class="gfill" id="dGainFill"></div></div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Background</div>
+        <button class="upload-btn" id="dBgBtn">&#9679; background video</button>
+        <input type="file" id="dBgInput" accept="video/*">
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Pair 1</span><span class="pair-indicator pair-indicator-blue">&#9632;</span></div>
+        <div class="vid-col">
+          <button class="upload-btn" id="dOverlayBtn">&#9650; source 1</button>
+          <input type="file" id="dOverlayInput" accept="video/*">
+          <button class="upload-btn" id="dDepthBtn">&#9670; depth map 1</button>
+          <input type="file" id="dDepthInput" accept="video/*">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Pair 2</span><span class="pair-indicator pair-indicator-pink">&#9632;</span></div>
+        <div class="vid-col">
+          <button class="upload-btn" id="dOverlay2Btn">&#9650; source 2</button>
+          <input type="file" id="dOverlay2Input" accept="video/*">
+          <button class="upload-btn" id="dDepth2Btn">&#9670; depth map 2</button>
+          <input type="file" id="dDepth2Input" accept="video/*">
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="unlock-overlay d-unlock-overlay" id="dUnlockOverlay">
+          <span class="d-unlock-text">unlock videos to scrub</span>
+          <button class="unlock-btn d-unlock-btn" id="dUnlockBtn">unlock</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Depth 1</span><span class="pair-indicator pair-indicator-blue">&#9632;</span></div>
+        <div class="sr"><span class="sl">threshold</span><input type="range" min="0" max="255" value="128" step="1" id="dThresh"><span class="sv" id="vThresh">128</span></div>
+        <div class="sr"><span class="sl">feather</span><input type="range" min="0" max="128" value="32" step="1" id="dFeather"><span class="sv" id="vFeather">32</span></div>
+        <div class="sr"><span class="sl">mix</span><input type="range" min="0" max="10" value="5" step="1" id="dMix"><span class="sv" id="vMix">5</span></div>
+        <div class="sr"><span class="sl">audio drive</span><input type="range" min="0" max="10" value="7" step="1" id="dAudioDrive"><span class="sv" id="vAudioDrive">7</span></div>
+        <div class="filter-row filter-row-mt" id="depthDirRow">
+          <button class="filter-btn active" data-dir="reveal">reveal</button>
+          <button class="filter-btn" data-dir="hide">hide</button>
+          <button class="filter-btn" data-dir="pulse">pulse</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Depth 2</span><span class="pair-indicator pair-indicator-pink">&#9632;</span></div>
+        <div class="sr"><span class="sl">threshold</span><input type="range" min="0" max="255" value="128" step="1" id="d2Thresh"><span class="sv" id="v2Thresh">128</span></div>
+        <div class="sr"><span class="sl">feather</span><input type="range" min="0" max="128" value="32" step="1" id="d2Feather"><span class="sv" id="v2Feather">32</span></div>
+        <div class="sr"><span class="sl">mix</span><input type="range" min="0" max="10" value="5" step="1" id="d2Mix"><span class="sv" id="v2Mix">5</span></div>
+        <div class="sr"><span class="sl">audio drive</span><input type="range" min="0" max="10" value="7" step="1" id="d2AudioDrive"><span class="sv" id="v2AudioDrive">7</span></div>
+        <div class="filter-row filter-row-mt" id="depthDir2Row">
+          <button class="filter-btn active" data-dir2="reveal">reveal</button>
+          <button class="filter-btn" data-dir2="hide">hide</button>
+          <button class="filter-btn" data-dir2="pulse">pulse</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Scrub</div>
+        <div class="sr"><span class="sl">bg range</span><input type="range" min="0" max="100" value="100" step="1" id="dBgRange"><span class="sv" id="vBgRange">100%</span></div>
+        <div class="sr"><span class="sl">src 1 range</span><input type="range" min="0" max="100" value="100" step="1" id="dOvRange"><span class="sv" id="vOvRange">100%</span></div>
+        <div class="sr"><span class="sl">src 2 range</span><input type="range" min="0" max="100" value="100" step="1" id="dOv2Range"><span class="sv" id="vOv2Range">100%</span></div>
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Bake depth</span><span class="rec-status" id="dRecInd">ready</span></div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn" id="dBakeBtn">&#9679; record</button>
+          <button class="btn disabled" id="dStopBakeBtn">&#9632; stop</button>
+        </div>
+        <div class="gmeter"><div class="gfill bake-fill-red" id="dBakeProgress"></div></div>
+      </div>
+
+    </div><!-- /sidebarDepth -->
+  </div><!-- /ws-depth -->
+
+  <!-- ═══════════════════════════════════════ LAYERS TAB ═══════ -->
+  <div class="workspace" id="ws-layers">
+    <div class="view-area">
+      <canvas id="lyPreview" width="320" height="420"></canvas>
+      <div class="ly-preview-label">preview</div>
+    </div>
+    <div class="sidebar" id="sidebarLayers">
+
+      <div class="section">
+        <div class="stitle">Images</div>
+        <button class="upload-btn" id="lyImgBtn">+ add layers</button>
+        <input type="file" id="lyImgInput" multiple accept="image/*">
+      </div>
+
+      <div class="section">
+        <div class="stitle"><span>Layers</span><span class="stitle-hint">drag to reorder · toggle = audio reactive</span></div>
+        <div class="ly-layer-list" id="lyLayerList">
+          <div class="ly-empty-state">no layers yet</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Audio</div>
+        <div class="status" id="lyAudioStatus">shared with other tabs</div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn" id="lyAudioBtn">mp3</button>
+          <input type="file" id="lyAudioInput" accept="audio/*">
+          <button class="btn" id="lyPlayBtn">play</button>
+          <button class="btn" id="lyMicBtn">mic</button>
+          <button class="btn" id="lySysBtn">sys</button>
+        </div>
+        <div class="vu ly-vu" id="lyVu">
+          <div class="vu-bar" id="lyvb0"></div><div class="vu-bar" id="lyvb1"></div>
+          <div class="vu-bar" id="lyvb2"></div><div class="vu-bar" id="lyvb3"></div>
+          <div class="vu-bar" id="lyvb4"></div><div class="vu-bar" id="lyvb5"></div>
+          <div class="vu-bar" id="lyvb6"></div><div class="vu-bar" id="lyvb7"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stitle">Controls</div>
+        <div class="sr"><span class="sl">sensitivity</span><input type="range" min="1" max="20" value="5" step="1" id="lySens"><span class="sv" id="vLySens">5</span></div>
+        <div class="sr"><span class="sl">threshold</span><input type="range" min="1" max="100" value="20" step="1" id="lyThresh"><span class="sv" id="vLyThresh">20</span></div>
+        <div class="sr"><span class="sl">direction</span><input type="range" min="0" max="1" value="1" step="1" id="lyDir"><span class="sv" id="vLyDir">loud=show</span></div>
+        <div class="sr"><span class="sl">stagger</span><input type="range" min="0" max="10" value="2" step="1" id="lyStag"><span class="sv" id="vLyStag">2</span></div>
+      </div>
+
+    </div><!-- /sidebarLayers -->
+  </div><!-- /ws-layers -->
+
+</div><!-- /app -->
+
+<script src="app.js"></script>
+</body>
+</html>

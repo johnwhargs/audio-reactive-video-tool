@@ -1,0 +1,7 @@
+[build]
+  publish = "static"
+
+[[redirects]]
+  from = "/daisy"
+  to = "/daisy-audio-reactive.html"
+  status = 200

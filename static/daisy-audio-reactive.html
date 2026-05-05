@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Reactive Layers</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a1a; color: #e0e0e0; height: 100vh; overflow: hidden; }
+.app { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+.canvas-area { background: #111; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+canvas#preview { display: block; max-width: 100%; max-height: 100%; }
+.sidebar { background: #222; border-left: 0.5px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
+.section { padding: 14px 16px; border-bottom: 0.5px solid #333; }
+.section-title { font-size: 11px; font-weight: 500; color: #666; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+.upload-btn { width: 100%; padding: 8px; border: 0.5px dashed #444; border-radius: 8px; background: transparent; color: #999; font-size: 13px; cursor: pointer; text-align: center; transition: background 0.15s; }
+.upload-btn:hover { background: #2a2a2a; }
+.layer-list { display: flex; flex-direction: column; gap: 4px; }
+.layer-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #2a2a2a; border: 0.5px solid #333; cursor: grab; user-select: none; }
+.layer-item.dragging { opacity: 0.4; }
+.layer-item.drag-over { border-color: #4ade80; }
+.layer-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: #333; flex-shrink: 0; }
+.layer-name { font-size: 12px; color: #ccc; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toggle-btn { width: 32px; height: 18px; border-radius: 9px; border: none; cursor: pointer; flex-shrink: 0; position: relative; transition: background 0.2s; }
+.toggle-btn.on { background: #4ade80; }
+.toggle-btn.off { background: #444; }
+.toggle-btn::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 3px; transition: left 0.2s; }
+.toggle-btn.on::after { left: 17px; }
+.toggle-btn.off::after { left: 3px; }
+.drag-handle { color: #555; font-size: 12px; cursor: grab; }
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.slider-label { font-size: 12px; color: #999; width: 80px; flex-shrink: 0; }
+.slider-val { font-size: 12px; font-weight: 500; color: #e0e0e0; width: 70px; text-align: right; flex-shrink: 0; }
+.slider-row input[type=range] { flex: 1; accent-color: #4ade80; }
+.audio-status { font-size: 12px; color: #666; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.btn { padding: 7px 14px; border-radius: 8px; border: 0.5px solid #444; background: transparent; color: #ccc; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+.btn:hover { background: #2a2a2a; }
+.btn.active { background: #14532d; color: #4ade80; border-color: #4ade80; }
+.empty-state { color: #555; font-size: 12px; text-align: center; padding: 12px 0; }
+.vu { display: flex; gap: 2px; align-items: flex-end; height: 40px; margin-top: 8px; }
+.vu-bar { flex: 1; border-radius: 2px 2px 0 0; background: #333; min-height: 2px; transition: height 0.05s; }
+input[type=file] { display: none; }
+.preview-label { position: absolute; bottom: 10px; left: 10px; font-size: 11px; color: #444; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="canvas-area">
+    <canvas id="preview" width="320" height="420"></canvas>
+    <div class="preview-label">preview</div>
+  </div>
+  <div class="sidebar">
+    <div class="section">
+      <div class="section-title">Images</div>
+      <button class="upload-btn" onclick="document.getElementById('imgInput').click()">+ add layers</button>
+      <input type="file" id="imgInput" multiple accept="image/*" onchange="addImages(this)">
+    </div>
+
+    <div class="section">
+      <div class="section-title">Layers <span style="color:#555;font-weight:400;font-size:10px;">(drag to reorder · toggle = audio reactive)</span></div>
+      <div class="layer-list" id="layerList">
+        <div class="empty-state">no layers yet</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Audio</div>
+      <div class="audio-status" id="audioStatus">no audio loaded</div>
+      <div class="btn-row">
+        <button class="btn" onclick="document.getElementById('audioInput').click()">load mp3</button>
+        <input type="file" id="audioInput" accept="audio/*" onchange="loadAudio(this)">
+        <button class="btn" id="playBtn" onclick="togglePlay()" style="display:none">play</button>
+        <button class="btn" onclick="toggleMic()" id="micBtn">mic</button>
+      </div>
+      <div class="vu" id="vu">
+        <div class="vu-bar" id="vb0"></div>
+        <div class="vu-bar" id="vb1"></div>
+        <div class="vu-bar" id="vb2"></div>
+        <div class="vu-bar" id="vb3"></div>
+        <div class="vu-bar" id="vb4"></div>
+        <div class="vu-bar" id="vb5"></div>
+        <div class="vu-bar" id="vb6"></div>
+        <div class="vu-bar" id="vb7"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Controls</div>
+      <div class="slider-row">
+        <span class="slider-label">sensitivity</span>
+        <input type="range" min="1" max="20" value="5" step="1" id="sSens" oninput="updateSlider('sSens','vSens')">
+        <span class="slider-val" id="vSens">5</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">threshold</span>
+        <input type="range" min="1" max="100" value="20" step="1" id="sThresh" oninput="updateSlider('sThresh','vThresh')">
+        <span class="slider-val" id="vThresh">20</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">direction</span>
+        <input type="range" min="0" max="1" value="1" step="1" id="sDir" oninput="updateSlider('sDir','vDir',v=>v>0?'loud=show':'loud=hide')">
+        <span class="slider-val" id="vDir">loud=show</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">stagger</span>
+        <input type="range" min="0" max="10" value="2" step="1" id="sStag" oninput="updateSlider('sStag','vStag')">
+        <span class="slider-val" id="vStag">2</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('preview');
+const ctx = canvas.getContext('2d');
+let layers = [];
+let audioCtx, analyser, source, audioBuffer, micStream;
+let playing = false;
+let animFrame;
+let amplitude = 0;
+let dragSrc = null;
+
+function updateSlider(id, valId, fmt) {
+  const v = parseFloat(document.getElementById(id).value);
+  const el = document.getElementById(valId);
+  el.textContent = fmt ? fmt(v) : v;
+}
+
+function addImages(input) {
+  const files = Array.from(input.files);
+  files.forEach(f => {
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      layers.push({ img, name: f.name.replace(/\.[^.]+$/, ''), reactive: true, url });
+      renderLayerList();
+      drawPreview();
+    };
+    img.src = url;
+  });
+  input.value = '';
+}
+
+function renderLayerList() {
+  const list = document.getElementById('layerList');
+  if (!layers.length) { list.innerHTML = '<div class="empty-state">no layers yet</div>'; return; }
+  list.innerHTML = '';
+  [...layers].reverse().forEach((l, ri) => {
+    const i = layers.length - 1 - ri;
+    const div = document.createElement('div');
+    div.className = 'layer-item';
+    div.draggable = true;
+    div.dataset.idx = i;
+    div.innerHTML = `
+      <span class="drag-handle">&#8942;&#8942;</span>
+      <img class="layer-thumb" src="${l.url}">
+      <span class="layer-name">${l.name}</span>
+      <button class="toggle-btn ${l.reactive ? 'on' : 'off'}" onclick="toggleReactive(${i})" title="${l.reactive ? 'reactive' : 'static'}"></button>
+    `;
+    div.addEventListener('dragstart', e => { dragSrc = i; div.classList.add('dragging'); });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+    div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      if (dragSrc !== null && dragSrc !== i) {
+        const tmp = layers[dragSrc]; layers[dragSrc] = layers[i]; layers[i] = tmp;
+        dragSrc = null; renderLayerList(); drawPreview();
+      }
+    });
+    list.appendChild(div);
+  });
+}
+
+function toggleReactive(i) {
+  layers[i].reactive = !layers[i].reactive;
+  renderLayerList();
+}
+
+function drawPreview() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const sens = parseFloat(document.getElementById('sSens').value);
+  const thresh = parseFloat(document.getElementById('sThresh').value);
+  const dir = parseFloat(document.getElementById('sDir').value);
+  const stag = parseFloat(document.getElementById('sStag').value);
+  layers.forEach((l, i) => {
+    if (!l.reactive) { drawLayer(l, 1); return; }
+    const offset = i * stag;
+    const effectiveAmp = amplitude * sens;
+    const triggered = effectiveAmp > (thresh + offset);
+    const visible = dir > 0 ? triggered : !triggered;
+    drawLayer(l, visible ? 1 : 0);
+  });
+}
+
+function drawLayer(l, opacity) {
+  if (opacity === 0) return;
+  ctx.globalAlpha = opacity;
+  const ar = l.img.width / l.img.height;
+  const car = canvas.width / canvas.height;
+  let dx, dy, dw, dh;
+  if (ar > car) { dh = canvas.height; dw = dh * ar; dx = (canvas.width - dw) / 2; dy = 0; }
+  else { dw = canvas.width; dh = dw / ar; dx = 0; dy = (canvas.height - dh) / 2; }
+  ctx.drawImage(l.img, dx, dy, dw, dh);
+  ctx.globalAlpha = 1;
+}
+
+function loadAudio(input) {
+  const f = input.files[0];
+  if (!f) return;
+  document.getElementById('audioStatus').textContent = f.name;
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 256; analyser.connect(audioCtx.destination); }
+  const reader = new FileReader();
+  reader.onload = e => {
+    audioCtx.decodeAudioData(e.target.result, buf => {
+      audioBuffer = buf;
+      document.getElementById('playBtn').style.display = '';
+      startLoop();
+    });
+  };
+  reader.readAsArrayBuffer(f);
+  input.value = '';
+}
+
+function togglePlay() {
+  const btn = document.getElementById('playBtn');
+  if (playing) {
+    if (source) { source.stop(); source = null; }
+    playing = false;
+    btn.textContent = 'play';
+    btn.classList.remove('active');
+  } else {
+    if (!audioCtx) audioCtx = new AudioContext();
+    source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(analyser);
+    source.loop = true;
+    source.start();
+    playing = true;
+    btn.textContent = 'stop';
+    btn.classList.add('active');
+  }
+}
+
+async function toggleMic() {
+  const btn = document.getElementById('micBtn');
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+    btn.classList.remove('active');
+    btn.textContent = 'mic';
+    return;
+  }
+  try {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 256; analyser.connect(audioCtx.destination); }
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const micSrc = audioCtx.createMediaStreamSource(micStream);
+    micSrc.connect(analyser);
+    btn.classList.add('active');
+    btn.textContent = 'mic on';
+    document.getElementById('audioStatus').textContent = 'microphone active';
+    startLoop();
+  } catch(e) { document.getElementById('audioStatus').textContent = 'mic access denied'; }
+}
+
+function startLoop() {
+  if (animFrame) return;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  const bars = document.querySelectorAll('.vu-bar');
+  function loop() {
+    animFrame = requestAnimationFrame(loop);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    amplitude = avg;
+    const step = Math.floor(data.length / 8);
+    bars.forEach((b, i) => {
+      const val = data[i * step] / 255;
+      b.style.height = Math.round(val * 38) + 'px';
+      b.style.background = val > 0.7 ? '#f87171' : val > 0.4 ? '#4ade80' : '#333';
+    });
+    drawPreview();
+  }
+  loop();
+}
+</script>
+</body>
+</html>
