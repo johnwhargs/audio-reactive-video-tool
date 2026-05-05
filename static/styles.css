@@ -97,6 +97,13 @@ input[type=file] { display: none; }
 .ly-empty-state { color: #555; font-size: 12px; text-align: center; padding: 12px 0; }
 .ly-preview-label { position: absolute; bottom: 10px; left: 10px; font-size: 11px; color: #444; }
 
+/* ─── Spotify ──────────────────────────────────────────────────────────── */
+.sp-connected { background: #1a2f1e !important; color: #1db954 !important; border-color: #1db954 !important; }
+.sp-info { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 20px; }
+.sp-art { width: 28px; height: 28px; border-radius: 3px; }
+.sp-track { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-features { font-size: 10px; color: #666; margin-top: 3px; }
+
 /* ─── Utility classes (extracted from inline styles) ─────────────────────── */
 #vid { max-width: 100%; max-height: 100%; display: block; }
 .unlock-text { font-size: 12px; color: #666; }

@@ -1378,9 +1378,144 @@ setDepthDir2 = function(d) {
   document.querySelectorAll('#depthDir2Row [data-dir2]').forEach(b=>b.classList.toggle('active',b.dataset.dir2===d));
 };
 
+// ─── SPOTIFY ────────────────────────────────────────────────────────────────
+const SPOTIFY_CLIENT_ID = 'a8a5fb0a10df43958dd52137e4051344';
+const SPOTIFY_REDIRECT = window.location.origin + '/callback';
+const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state';
+
+let spotifyToken = localStorage.getItem('spotify_token');
+let spotifyExpires = parseInt(localStorage.getItem('spotify_expires') || '0');
+let spotifyPoller = null;
+let spotifyCurrentTrackId = null;
+let spotifyFeatures = null;
+
+function spotifyAuth() {
+  const params = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    response_type: 'token',
+    redirect_uri: SPOTIFY_REDIRECT,
+    scope: SPOTIFY_SCOPES,
+    show_dialog: 'false'
+  });
+  window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+}
+
+function spotifyLogout() {
+  localStorage.removeItem('spotify_token');
+  localStorage.removeItem('spotify_expires');
+  spotifyToken = null;
+  spotifyExpires = 0;
+  spotifyCurrentTrackId = null;
+  spotifyFeatures = null;
+  if (spotifyPoller) { clearInterval(spotifyPoller); spotifyPoller = null; }
+  updateSpotifyUI(null);
+}
+
+function isSpotifyConnected() {
+  return spotifyToken && Date.now() < spotifyExpires;
+}
+
+async function spotifyFetch(endpoint) {
+  if (!isSpotifyConnected()) return null;
+  const resp = await fetch('https://api.spotify.com/v1' + endpoint, {
+    headers: { 'Authorization': 'Bearer ' + spotifyToken }
+  });
+  if (resp.status === 401) { spotifyLogout(); return null; }
+  if (resp.status === 204) return null;
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+async function pollNowPlaying() {
+  const data = await spotifyFetch('/me/player/currently-playing');
+  if (!data || !data.item) {
+    updateSpotifyUI(null);
+    return;
+  }
+
+  const track = data.item;
+  const trackId = track.id;
+  const changed = trackId !== spotifyCurrentTrackId;
+
+  if (changed) {
+    spotifyCurrentTrackId = trackId;
+    // Fetch audio features for auto-tune hints
+    const features = await spotifyFetch('/audio-features/' + trackId);
+    spotifyFeatures = features;
+    onTrackChange(track, features);
+  }
+
+  updateSpotifyUI(track);
+}
+
+function onTrackChange(track, features) {
+  if (!features) return;
+
+  // Apply BPM from Spotify if beat tracker hasn't locked
+  if (features.tempo && !btInitialized) {
+    const bpm = Math.round(features.tempo);
+    beatInterval = 60000 / bpm;
+    g('btBPM').textContent = bpm;
+    g('btStatus').textContent = 'spotify';
+    g('btStatus').style.color = '#1db954';
+  }
+
+  // Show energy/valence as hints
+  const energy = Math.round((features.energy || 0) * 100);
+  const valence = Math.round((features.valence || 0) * 100);
+  const el = g('spFeatures');
+  if (el) el.textContent = 'energy ' + energy + '% · valence ' + valence + '%';
+}
+
+function updateSpotifyUI(track) {
+  const btn = g('spConnectBtn');
+  const info = g('spTrackInfo');
+  const art = g('spArt');
+
+  if (!isSpotifyConnected()) {
+    btn.textContent = 'connect spotify';
+    btn.classList.remove('sp-connected');
+    if (info) info.textContent = '';
+    if (art) art.style.display = 'none';
+    if (g('spFeatures')) g('spFeatures').textContent = '';
+    return;
+  }
+
+  btn.textContent = 'disconnect';
+  btn.classList.add('sp-connected');
+
+  if (track) {
+    const artist = track.artists.map(a => a.name).join(', ');
+    const name = track.name;
+    if (info) info.textContent = name + ' — ' + artist;
+    if (art && track.album && track.album.images && track.album.images.length) {
+      art.src = track.album.images[track.album.images.length - 1].url;
+      art.style.display = 'block';
+    }
+  } else {
+    if (info) info.textContent = 'nothing playing';
+    if (art) art.style.display = 'none';
+  }
+}
+
+function startSpotifyPoller() {
+  if (spotifyPoller) clearInterval(spotifyPoller);
+  pollNowPlaying();
+  spotifyPoller = setInterval(pollNowPlaying, 3000);
+}
+
+// Spotify UI binding
+g('spConnectBtn').addEventListener('click', () => {
+  if (isSpotifyConnected()) spotifyLogout();
+  else spotifyAuth();
+});
+
 // ─── INIT ────────────────────────────────────────────────────────────────────
 [vid, dBgVid, dOvVid, dDpVid, dOv2Vid, dDp2Vid].forEach(v => { v.muted = true; v.volume = 0; });
 drawBeatRing(0);
 drawAudioTL();
 drawVideoTL();
 tlSetupEvents();
+
+// Auto-start Spotify poller if token exists
+if (isSpotifyConnected()) startSpotifyPoller();
