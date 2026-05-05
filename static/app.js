@@ -52,7 +52,7 @@ let sidebarVisible=true, toastTimer=null, currentTab='scrub';
 function updateSlider(id,valId,fmt){ const v=parseFloat(document.getElementById(id).value); document.getElementById(valId).textContent=fmt?fmt(v):v; }
 function setSlider(id,valId,val,fmt){ document.getElementById(id).value=val; document.getElementById(valId).textContent=fmt?fmt(val):val; }
 function g(id){ return document.getElementById(id); }
-function gv(id){ return parseFloat(g(id).value); }
+function gv(id){ const el=g(id); return el ? parseFloat(el.value) : 0; }
 
 // ─── TAB SWITCHING ────────────────────────────────────────────────────────────
 function switchTab(tab) {
