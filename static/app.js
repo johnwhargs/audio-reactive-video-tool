@@ -885,7 +885,13 @@ function startLoop(){
       }
       else if(currentMode==='pingpong'){ nextTime=vid.currentTime+(tAlive-0.5)*0.4+minDrift*bounceDir; }
       else if(currentMode==='freeze'){ if(tAlive>0.3||aliveLevel>0) nextTime=vid.currentTime+0.033*(tAlive>0.3?1:0.3)*bounceDir+minDrift*bounceDir; }
-      if(nextTime>=re){bounceDir=-1;stuckNudgeDir=-1;nextTime=re-0.01;}else if(nextTime<=rs){bounceDir=1;stuckNudgeDir=1;nextTime=rs+0.01;}
+      if(currentMode==='pingpong'){
+        // Loop: wrap around instead of bouncing
+        if(nextTime>=re) nextTime=rs+(nextTime-re);
+        if(nextTime<=rs) nextTime=re-(rs-nextTime);
+      } else {
+        if(nextTime>=re){bounceDir=-1;stuckNudgeDir=-1;nextTime=re-0.01;}else if(nextTime<=rs){bounceDir=1;stuckNudgeDir=1;nextTime=rs+0.01;}
+      }
 
       // ── Flicker at peak ──────────────────────────────────────────────────
       const now3 = Date.now();
@@ -1544,7 +1550,6 @@ function updateSpotifyUI(track) {
   const infoRow = g('spInfo');
   const hint = g('spHint');
   const controls = g('spControls');
-  const ppBtn = g('spPlayPauseBtn');
   const progFill = g('spProgFill');
   const progTime = g('spProgTime');
 
@@ -1562,9 +1567,6 @@ function updateSpotifyUI(track) {
   btn.classList.add('sp-connected');
   if (hint) hint.style.display = 'block';
   if (controls) controls.style.display = 'flex';
-
-  // Play/pause button state
-  if (ppBtn) ppBtn.textContent = spotifyIsPlaying ? '⏸' : '▶';
 
   // Progress bar
   if (progFill && spotifyDurationMs > 0) {
@@ -1606,7 +1608,6 @@ async function spotifyPost(endpoint) {
   setTimeout(pollNowPlaying, 300);
 }
 
-function spTogglePlay() { spotifyIsPlaying ? spotifyPut('/me/player/pause') : spotifyPut('/me/player/play'); }
 function spNext() { spotifyPost('/me/player/next'); }
 function spPrev() { spotifyPost('/me/player/previous'); }
 
@@ -1622,7 +1623,6 @@ g('spConnectBtn').addEventListener('click', () => {
   else spotifyAuth();
 });
 g('spPrevBtn').addEventListener('click', spPrev);
-g('spPlayPauseBtn').addEventListener('click', spTogglePlay);
 g('spNextBtn').addEventListener('click', spNext);
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
