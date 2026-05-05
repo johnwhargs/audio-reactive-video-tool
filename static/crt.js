@@ -1,0 +1,587 @@
+// ─── CRT Post-Processing Module ─────────────────────────────────────────────
+// Ported from crt-player by John Hargreaves
+// WebGL post-process: scanlines, mask, barrel warp, chromatic aberration,
+// bad TV distortion, glitch blocks, jitter, bloom, vignette, noise
+
+const CRT = (() => {
+
+let gl, program, fb, fbTex, quadBuf, uniforms = {};
+let canvas, enabled = false, preset = 'off';
+let params = {};
+const DEFAULTS = {
+  scanlines: 0.0,       // 0-1 scanline darkness
+  scanShape: 0,         // 0=gaussian, 1=linear, 2=box, 3=off
+  maskType: 2,          // 0=aperture, 1=slot, 2=off, 3=shadow
+  maskScale: 1.0,       // mask pixel scale
+  maskDark: 0.5,        // dark phosphor level
+  maskLight: 1.5,       // bright phosphor level
+  curvature: 0.0,       // barrel warp 0-30
+  chromatic: 0.0,       // chromatic aberration 0-5
+  convergence: 0.0,     // RGB convergence error 0-1
+  distortion: 0.0,      // bad TV thick distort 0-3
+  distortion2: 0.0,     // bad TV fine distort 0-3
+  glitchIntensity: 0.0, // glitch block displacement 0-1
+  glitchSpeed: 1.0,     // glitch temporal speed
+  jitter: 0.0,          // horizontal line jitter 0-1
+  rgbShift: 0.0,        // RGB channel separation 0-5
+  noise: 0.0,           // static noise 0-0.3
+  bloom: 0.0,           // bloom glow 0-1
+  vignette: 0.0,        // edge darkening 0-1
+  brightness: 1.0,      // overall brightness
+  saturation: 1.0,      // color saturation
+  flicker: 0.0,         // brightness flicker 0-0.1
+  rollSpeed: 0.0,       // vertical roll 0-1
+  rollLine: 0.0,        // roll bar width
+  colorBleed: 0.0,      // horizontal color smear 0-1
+  persistence: 0.0,     // phosphor persistence 0-1
+  screenTear: 0.0,      // horizontal tear lines 0-1
+  solarize: 0.0,        // solarize effect 0-1
+  posterize: 0.0,       // posterize levels 0-1
+  invert: 0.0,          // color invert 0-1
+  vSyncWobble: 0.0,     // vsync instability 0-1
+  hSyncLoss: 0.0,       // hsync loss 0-1
+  dataBend: 0.0,        // data corruption 0-1
+  pixelate: 0.0,        // block mosaic 0-1
+  vortex: 0.0,          // spiral distort 0-1
+  waveDistort: 0.0,     // sine wave horizontal 0-1
+  mirror: 0.0,          // kaleidoscope 0-8
+};
+
+const PRESETS = {
+  off: {},
+  vhs: {
+    scanlines:0.2, curvature:10, bloom:0.4, chromatic:2, vignette:0.4,
+    brightness:0.95, saturation:0.9, maskType:1, noise:0.06, distortion:1.5,
+    distortion2:0.8, colorBleed:0.25, jitter:0.2, rollLine:0.3, persistence:0.3,
+    flicker:0.04
+  },
+  arcade: {
+    scanlines:0.5, curvature:15, bloom:0.4, chromatic:1.5, vignette:0.55,
+    brightness:1.15, saturation:1.35, maskType:1, maskScale:0.9, noise:0.025,
+    convergence:0.08, persistence:0.18, flicker:0.015
+  },
+  broadcast: {
+    scanlines:0.35, curvature:5, bloom:0.25, chromatic:0.8, vignette:0.3,
+    brightness:1.05, saturation:1.0, maskType:0, maskScale:0.7, noise:0.01,
+    flicker:0.005, persistence:0.1
+  },
+  glitch: {
+    scanlines:0.15, curvature:3, bloom:0.35, chromatic:3, vignette:0.2,
+    glitchIntensity:0.7, glitchSpeed:1.5, rgbShift:2, jitter:0.6, noise:0.03,
+    persistence:0.08
+  },
+  cctv: {
+    scanlines:0.4, curvature:8, bloom:0.15, chromatic:0.5, vignette:0.6,
+    brightness:0.9, saturation:0.3, maskType:2, noise:0.08, jitter:0.1,
+    flicker:0.03
+  },
+  busted: {
+    scanlines:0.3, curvature:12, bloom:0.5, chromatic:4, vignette:0.5,
+    distortion:2.5, distortion2:1.5, jitter:0.8, noise:0.1, rollSpeed:0.3,
+    rollLine:0.5, vSyncWobble:0.6, hSyncLoss:0.3, glitchIntensity:0.4,
+    glitchSpeed:2, colorBleed:0.4, flicker:0.08, screenTear:0.5
+  },
+  dreamy: {
+    scanlines:0.1, curvature:2, bloom:0.7, chromatic:1.5, vignette:0.3,
+    brightness:1.1, saturation:1.2, persistence:0.5, flicker:0.01, noise:0.01
+  },
+  acidTrip: {
+    scanlines:0.1, chromatic:4, rgbShift:3, solarize:0.5, vortex:0.3,
+    waveDistort:0.4, bloom:0.5, saturation:1.5, flicker:0.02, noise:0.02,
+    glitchIntensity:0.3, glitchSpeed:3
+  }
+};
+
+// ─── GLSL ───────────────────────────────────────────────────────────────────
+
+const VERT = `
+attribute vec2 aPos;
+varying vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uTexture;
+uniform vec2 uResolution;
+uniform float uTime;
+
+// Params
+uniform float uScanlines;
+uniform float uScanShape;
+uniform float uMaskType;
+uniform float uMaskScale;
+uniform float uMaskDark;
+uniform float uMaskLight;
+uniform float uCurvature;
+uniform float uChromatic;
+uniform float uConvergence;
+uniform float uDistortion;
+uniform float uDistortion2;
+uniform float uGlitchIntensity;
+uniform float uGlitchSpeed;
+uniform float uJitter;
+uniform float uRGBShift;
+uniform float uNoise;
+uniform float uBloom;
+uniform float uVignette;
+uniform float uBrightness;
+uniform float uSaturation;
+uniform float uFlicker;
+uniform float uRollSpeed;
+uniform float uRollLine;
+uniform float uColorBleed;
+uniform float uPersistence;
+uniform float uScreenTear;
+uniform float uSolarize;
+uniform float uPosterize;
+uniform float uInvert;
+uniform float uVSyncWobble;
+uniform float uHSyncLoss;
+uniform float uDataBend;
+uniform float uPixelate;
+uniform float uVortex;
+uniform float uWaveDistort;
+uniform float uMirror;
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+float hash1(float n) { return fract(sin(n) * 43758.5453123); }
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+
+// Simplex-ish noise
+float snoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  float a=hash2(i), b=hash2(i+vec2(1,0)), c=hash2(i+vec2(0,1)), d=hash2(i+vec2(1,1));
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+
+// ─── Barrel Warp ────────────────────────────────────────────────────────────
+
+vec2 Warp(vec2 uv) {
+  if (uCurvature <= 0.0) return uv;
+  vec2 p = uv * 2.0 - 1.0;
+  float warp = uCurvature / 1000.0;
+  p *= vec2(1.0 + p.y*p.y*warp, 1.0 + p.x*p.x*warp);
+  p /= vec2(1.0 + warp, 1.0 + warp);
+  return p * 0.5 + 0.5;
+}
+
+// ─── Bad TV Distortion ──────────────────────────────────────────────────────
+
+float badTV(vec2 uv, float t) {
+  float d = 0.0;
+  float lineY = floor(uv.y * 480.0) / 480.0;
+
+  if (uDistortion > 0.0) {
+    float psRipple = sin(t * 120.0 * 6.28318) * 0.25;
+    float drift = snoise(vec2(lineY * 4.0, t * 0.5));
+    float stepped = snoise(vec2(lineY * 8.0, t * 0.7 + 31.0));
+    float standingWave = sin(uv.y * 40.0 + t * 50.0) * 0.2;
+    float linePhase = sin(lineY * 2.0) * psRipple;
+    float lineHash = hash1(lineY * 137.0 + floor(t * 60.0 * 0.13));
+    d += uDistortion * (mix(drift, stepped, 0.7) * 0.35
+      + standingWave * 0.25 + linePhase * 0.2
+      + snoise(vec2(lineY * 16.0, t * 1.2)) * 0.15
+      + (lineHash - 0.5) * 0.05);
+  }
+
+  if (uDistortion2 > 0.0) {
+    float lineJitter = hash1(lineY * 293.0 + floor(t * 60.0 * 0.25));
+    float oscDrift = sin(t * 3.2 + lineY * 20.0) * 0.03;
+    d += uDistortion2 * (snoise(vec2(lineY * 40.0, t * 3.0)) * 0.1
+      + (lineJitter - 0.5) * 0.06 + oscDrift
+      + snoise(vec2(lineY * 100.0, t * 5.0)) * 0.04);
+  }
+  return d;
+}
+
+// ─── Glitch Blocks ──────────────────────────────────────────────────────────
+
+vec2 glitchOffset(vec2 uv, float t) {
+  if (uGlitchIntensity <= 0.0) return vec2(0.0);
+  float gt = floor(t * uGlitchSpeed * 5.0);
+  float trigger = step(0.85 - uGlitchIntensity * 0.3, hash1(gt * 1.3));
+  if (trigger < 0.5) return vec2(0.0);
+  float blockY = floor(uv.y * (4.0 + uGlitchIntensity * 12.0));
+  float blockHash = hash1(blockY + gt * 7.7);
+  float blockOn = step(0.5, blockHash);
+  float shift = (hash1(blockY * 3.3 + gt * 11.1) - 0.5) * uGlitchIntensity * 0.15;
+  return vec2(shift * blockOn, 0.0);
+}
+
+// ─── Phosphor Mask ──────────────────────────────────────────────────────────
+
+vec3 Mask(vec2 pos) {
+  if (uMaskType > 1.5 && uMaskType < 2.5) return vec3(1.0); // off
+  float scale = max(uMaskScale, 0.25);
+  pos /= scale;
+  vec3 mask = vec3(uMaskDark);
+
+  if (uMaskType < 0.5) {
+    // Aperture grille (Trinitron)
+    float col = fract(pos.x / 3.0) * 3.0;
+    float tw = 0.08;
+    mask.r = mix(uMaskDark, uMaskLight, smoothstep(0.0-tw,0.0+tw,col)*smoothstep(1.0+tw,1.0-tw,col));
+    mask.g = mix(uMaskDark, uMaskLight, smoothstep(1.0-tw,1.0+tw,col)*smoothstep(2.0+tw,2.0-tw,col));
+    mask.b = mix(uMaskDark, uMaskLight, smoothstep(2.0-tw,2.0+tw,col));
+  } else if (uMaskType < 1.5) {
+    // Slot mask
+    float slotRow = floor(pos.y);
+    pos.x += mod(slotRow, 2.0) * 1.5;
+    float col = fract(pos.x / 3.0) * 3.0;
+    float tw = 0.08;
+    mask.r = mix(uMaskDark, uMaskLight, smoothstep(0.0-tw,0.0+tw,col)*smoothstep(1.0+tw,1.0-tw,col));
+    mask.g = mix(uMaskDark, uMaskLight, smoothstep(1.0-tw,1.0+tw,col)*smoothstep(2.0+tw,2.0-tw,col));
+    mask.b = mix(uMaskDark, uMaskLight, smoothstep(2.0-tw,2.0+tw,col));
+  } else if (uMaskType > 2.5) {
+    // Shadow mask (dot triad)
+    float triW = 3.0, triH = triW * 0.866;
+    float row = floor(pos.y / triH);
+    float xOff = mod(row, 2.0) * 1.5;
+    float cx = mod(pos.x + xOff, triW) - triW * 0.5;
+    float cy = mod(pos.y, triH) - triH * 0.5;
+    float dist = sqrt(cx*cx + cy*cy);
+    float dotR = triW * 0.38;
+    float dot = smoothstep(dotR, dotR * 0.55, dist);
+    float phase = fract((pos.x + xOff) / triW);
+    if (phase < 0.333) mask.r = mix(uMaskDark, uMaskLight, dot);
+    else if (phase < 0.666) mask.g = mix(uMaskDark, uMaskLight, dot);
+    else mask.b = mix(uMaskDark, uMaskLight, dot);
+  }
+  return mask;
+}
+
+// ─── Scanline Weight ────────────────────────────────────────────────────────
+
+float scanWeight(float y, float scanCount) {
+  if (uScanlines <= 0.0) return 1.0;
+  float line = y * scanCount;
+  float frac = fract(line);
+  float w;
+  if (uScanShape > 2.5) { w = 1.0; }
+  else if (uScanShape > 1.5) { w = step(0.5, frac) > 0.0 ? 1.0 : 1.0 - uScanlines; } // box
+  else if (uScanShape > 0.5) { w = 1.0 - uScanlines * (1.0 - abs(frac - 0.5) * 2.0); } // linear
+  else { w = 1.0 - uScanlines * exp(-pow((frac-0.5)*4.0, 2.0) * 2.0); w = max(w, 1.0 - uScanlines); } // gaussian
+  return w;
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
+
+void main() {
+  vec2 uv = vUv;
+  float t = uTime;
+  vec2 res = uResolution;
+  float scanCount = 480.0;
+
+  // ── Mirror / Kaleidoscope ──
+  if (uMirror > 0.5) {
+    vec2 c = uv - 0.5;
+    float angle = atan(c.y, c.x);
+    float r = length(c);
+    float n = max(2.0, floor(uMirror));
+    float seg = 6.28318 / n;
+    angle = mod(angle, seg);
+    if (angle > seg * 0.5) angle = seg - angle;
+    uv = vec2(cos(angle), sin(angle)) * r + 0.5;
+  }
+
+  // ── Vortex ──
+  if (uVortex > 0.0) {
+    vec2 c = uv - 0.5;
+    float r = length(c);
+    float a = atan(c.y, c.x) + uVortex * (1.0 - r) * 3.0;
+    uv = vec2(cos(a), sin(a)) * r + 0.5;
+  }
+
+  // ── Wave distortion ──
+  if (uWaveDistort > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    uv.x += sin(lineY * 30.0 + t * 5.0) * uWaveDistort * 0.02;
+  }
+
+  // ── Barrel warp ──
+  uv = Warp(uv);
+
+  // ── V-Sync wobble ──
+  if (uVSyncWobble > 0.0) {
+    float wobble = sin(t * 3.7) * 0.5 + sin(t * 7.3) * 0.3 + sin(t * 13.1) * 0.2;
+    uv.y += wobble * uVSyncWobble * 0.01;
+  }
+
+  // ── H-Sync loss ──
+  if (uHSyncLoss > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    float barber = sin(lineY * 50.0 + t * 20.0);
+    float loss = smoothstep(0.3, 0.8, barber) * uHSyncLoss;
+    uv.x += loss * 0.05;
+  }
+
+  // ── Vertical roll ──
+  if (uRollSpeed > 0.0) {
+    uv.y = fract(uv.y + t * uRollSpeed * 0.1);
+    float rollPos = fract(t * uRollSpeed * 0.1);
+    float rollBar = smoothstep(0.0, uRollLine * 0.1, abs(uv.y - rollPos));
+    // darken at roll bar
+    // applied later
+  }
+
+  // ── Bad TV ──
+  float btv = badTV(uv, t);
+  uv.x += btv * 0.02;
+
+  // ── Glitch blocks ──
+  uv += glitchOffset(uv, t);
+
+  // ── Data bend ──
+  if (uDataBend > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    float bend = hash1(lineY * 173.0 + floor(t * 8.0) * 7.7);
+    if (bend > 0.85) uv.x += (bend - 0.85) * uDataBend * 0.3;
+  }
+
+  // ── Jitter ──
+  if (uJitter > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    float j = (hash1(lineY * 211.0 + floor(t * 60.0)) - 0.5) * 2.0;
+    j += sin(lineY * 15.0 + t * 8.0) * 0.5;
+    uv.x += j * uJitter * 0.005;
+  }
+
+  // ── Screen tear ──
+  if (uScreenTear > 0.0) {
+    float tearY1 = fract(t * 0.7) * 0.8 + 0.1;
+    float tearY2 = fract(t * 1.1 + 0.5) * 0.8 + 0.1;
+    if (abs(uv.y - tearY1) < 0.003) uv.x += uScreenTear * 0.03;
+    if (abs(uv.y - tearY2) < 0.002) uv.x -= uScreenTear * 0.02;
+  }
+
+  // ── Pixelate ──
+  if (uPixelate > 0.0) {
+    float blocks = mix(256.0, 16.0, uPixelate);
+    uv = floor(uv * blocks) / blocks;
+  }
+
+  // ── Out of bounds check ──
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+
+  // ── Sample with chromatic aberration + RGB shift ──
+  vec3 col;
+  float ca = uChromatic / res.x;
+  float shift = uRGBShift / res.x;
+  vec2 dir = (uv - 0.5);
+  float dist = length(dir);
+
+  // Convergence offset
+  vec2 convR = vec2( 0.5, -0.3) * uConvergence * 0.003;
+  vec2 convB = vec2(-0.3,  0.5) * uConvergence * 0.003;
+
+  vec2 rOff = dir * ca * dist + vec2(shift, 0.0) + convR;
+  vec2 bOff = -dir * ca * dist - vec2(shift, 0.0) + convB;
+
+  col.r = texture2D(uTexture, uv + rOff).r;
+  col.g = texture2D(uTexture, uv).g;
+  col.b = texture2D(uTexture, uv + bOff).b;
+
+  // ── Color bleed ──
+  if (uColorBleed > 0.0) {
+    float px = 1.0 / res.x;
+    vec3 bleed = vec3(0.0);
+    for (float i = 1.0; i <= 4.0; i++) {
+      bleed += texture2D(uTexture, uv - vec2(px * i, 0.0)).rgb;
+    }
+    col = mix(col, bleed / 4.0, uColorBleed * 0.3);
+  }
+
+  // ── Solarize ──
+  if (uSolarize > 0.0) {
+    vec3 sol = mix(col, 1.0 - col, step(0.5, col));
+    col = mix(col, sol, uSolarize);
+  }
+
+  // ── Posterize ──
+  if (uPosterize > 0.0) {
+    float levels = mix(256.0, 4.0, uPosterize);
+    col = floor(col * levels) / levels;
+  }
+
+  // ── Invert ──
+  col = mix(col, 1.0 - col, uInvert);
+
+  // ── Saturation ──
+  float luma = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(luma), col, uSaturation);
+
+  // ── Scanlines ──
+  float sw = scanWeight(uv.y, scanCount);
+  col *= sw;
+
+  // ── Phosphor mask ──
+  vec2 fragCoord = uv * res;
+  col *= Mask(fragCoord);
+
+  // ── Bloom (simple glow approximation) ──
+  if (uBloom > 0.0) {
+    vec3 bloomCol = vec3(0.0);
+    float px = 1.0/res.x, py = 1.0/res.y;
+    for (float x = -2.0; x <= 2.0; x++) {
+      for (float y = -2.0; y <= 2.0; y++) {
+        bloomCol += texture2D(uTexture, uv + vec2(x*px*3.0, y*py*3.0)).rgb;
+      }
+    }
+    bloomCol /= 25.0;
+    // Only add bright parts
+    vec3 bright = max(bloomCol - 0.5, 0.0) * 2.0;
+    col += bright * uBloom;
+  }
+
+  // ── Noise ──
+  if (uNoise > 0.0) {
+    float n = hash2(uv * res + vec2(t * 1000.0)) - 0.5;
+    col += vec3(n) * uNoise;
+  }
+
+  // ── Flicker ──
+  if (uFlicker > 0.0) {
+    float fl = 1.0 + (sin(t * 120.0) * 0.5 + sin(t * 37.0) * 0.3 + sin(t * 7.0) * 0.2) * uFlicker;
+    col *= fl;
+  }
+
+  // ── Vertical roll bar darkening ──
+  if (uRollSpeed > 0.0) {
+    float rollPos = fract(t * uRollSpeed * 0.1);
+    float rollBar = smoothstep(0.0, max(uRollLine * 0.1, 0.01), abs(uv.y - rollPos));
+    col *= mix(0.3, 1.0, rollBar);
+  }
+
+  // ── Vignette ──
+  if (uVignette > 0.0) {
+    vec2 vig = vUv * (1.0 - vUv);
+    float v = pow(vig.x * vig.y * 15.0, uVignette * 0.5);
+    col *= clamp(v, 0.0, 1.0);
+  }
+
+  // ── Brightness ──
+  col *= uBrightness;
+
+  // ── Clamp ──
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+// ─── WebGL Setup ────────────────────────────────────────────────────────────
+
+function init(targetCanvas) {
+  canvas = targetCanvas;
+  gl = canvas.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+  if (!gl) { console.warn('[crt] WebGL unavailable'); return false; }
+
+  // Compile shaders
+  const vs = compileShader(gl.VERTEX_SHADER, VERT);
+  const fs = compileShader(gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) return false;
+
+  program = gl.createProgram();
+  gl.attachShader(program, vs); gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error('[crt] link error:', gl.getProgramInfoLog(program)); return false;
+  }
+  gl.useProgram(program);
+
+  // Fullscreen quad
+  quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(program, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // Input texture
+  fbTex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fbTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.uniform1i(gl.getUniformLocation(program, 'uTexture'), 0);
+
+  // Cache uniform locations
+  const names = Object.keys(DEFAULTS);
+  const uNames = ['uTexture','uResolution','uTime',
+    ...names.map(k => 'u' + k.charAt(0).toUpperCase() + k.slice(1))];
+  uNames.forEach(n => { uniforms[n] = gl.getUniformLocation(program, n); });
+
+  // Set defaults
+  params = { ...DEFAULTS };
+  console.log('[crt] init OK');
+  return true;
+}
+
+function compileShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error('[crt] shader error:', gl.getShaderInfoLog(s)); return null;
+  }
+  return s;
+}
+
+// ─── Render ─────────────────────────────────────────────────────────────────
+
+function render(source, width, height) {
+  if (!gl || !enabled) return;
+  canvas.width = width; canvas.height = height;
+  gl.viewport(0, 0, width, height);
+
+  // Upload source texture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fbTex);
+  try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source); }
+  catch(e) { return; }
+
+  // Set uniforms
+  gl.useProgram(program);
+  gl.uniform2f(uniforms.uResolution, width, height);
+  gl.uniform1f(uniforms.uTime, performance.now() / 1000.0);
+
+  Object.keys(DEFAULTS).forEach(key => {
+    const uName = 'u' + key.charAt(0).toUpperCase() + key.slice(1);
+    if (uniforms[uName] !== undefined && uniforms[uName] !== null) {
+      gl.uniform1f(uniforms[uName], params[key] !== undefined ? params[key] : DEFAULTS[key]);
+    }
+  });
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ─── Preset Management ──────────────────────────────────────────────────────
+
+function setPreset(name) {
+  preset = name;
+  params = { ...DEFAULTS };
+  if (PRESETS[name]) Object.assign(params, PRESETS[name]);
+  enabled = name !== 'off';
+}
+
+function setParam(key, val) {
+  if (key in DEFAULTS) params[key] = val;
+}
+
+function getParam(key) { return params[key]; }
+function getPresetNames() { return Object.keys(PRESETS); }
+function isEnabled() { return enabled; }
+function setEnabled(v) { enabled = v; }
+
+return { init, render, setPreset, setParam, getParam, getPresetNames, isEnabled, setEnabled, DEFAULTS, PRESETS };
+})();

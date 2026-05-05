@@ -29,6 +29,7 @@
   <div class="workspace" id="ws-scrub">
     <div class="view-area">
       <video id="vid" preload="auto" playsinline muted></video>
+      <canvas id="crtCanvas"></canvas>
       <div class="unlock-overlay" id="unlockOverlay">
         <div class="unlock-text">click to enable scrubbing</div>
         <button class="unlock-btn" id="unlockBtn">unlock</button>
@@ -178,6 +179,38 @@
         <div class="sr"><span class="sl">flicker range</span><input type="range" min="1" max="50" value="5" step="1" id="sFlickerRange"><span class="sv" id="vFlickerRange">5</span></div>
       </div>
 
+
+      <div class="section">
+        <div class="stitle">CRT / Glitch</div>
+        <div class="btn-row btn-row-mb">
+          <select id="crtPreset" class="crt-select">
+            <option value="off">off</option>
+            <option value="vhs">VHS</option>
+            <option value="arcade">Arcade</option>
+            <option value="broadcast">Broadcast</option>
+            <option value="glitch">Glitch</option>
+            <option value="cctv">CCTV</option>
+            <option value="busted">Busted</option>
+            <option value="dreamy">Dreamy</option>
+            <option value="acidTrip">Acid Trip</option>
+          </select>
+        </div>
+        <div id="crtControls" style="display:none;">
+          <div class="sr"><span class="sl">scanlines</span><input type="range" min="0" max="100" value="0" step="1" id="cScanlines"><span class="sv" id="vCScanlines">0</span></div>
+          <div class="sr"><span class="sl">curvature</span><input type="range" min="0" max="30" value="0" step="1" id="cCurvature"><span class="sv" id="vCCurvature">0</span></div>
+          <div class="sr"><span class="sl">chromatic</span><input type="range" min="0" max="50" value="0" step="1" id="cChromatic"><span class="sv" id="vCChromatic">0</span></div>
+          <div class="sr"><span class="sl">bloom</span><input type="range" min="0" max="100" value="0" step="1" id="cBloom"><span class="sv" id="vCBloom">0</span></div>
+          <div class="sr"><span class="sl">noise</span><input type="range" min="0" max="30" value="0" step="1" id="cNoise"><span class="sv" id="vCNoise">0</span></div>
+          <div class="sr"><span class="sl">vignette</span><input type="range" min="0" max="100" value="0" step="1" id="cVignette"><span class="sv" id="vCVignette">0</span></div>
+          <div class="sr"><span class="sl">distortion</span><input type="range" min="0" max="30" value="0" step="1" id="cDistortion"><span class="sv" id="vCDistortion">0</span></div>
+          <div class="sr"><span class="sl">jitter</span><input type="range" min="0" max="100" value="0" step="1" id="cJitter"><span class="sv" id="vCJitter">0</span></div>
+          <div class="sr"><span class="sl">glitch</span><input type="range" min="0" max="100" value="0" step="1" id="cGlitch"><span class="sv" id="vCGlitch">0</span></div>
+          <div class="sr"><span class="sl">rgb shift</span><input type="range" min="0" max="50" value="0" step="1" id="cRGBShift"><span class="sv" id="vCRGBShift">0</span></div>
+          <div class="sr"><span class="sl">roll</span><input type="range" min="0" max="100" value="0" step="1" id="cRoll"><span class="sv" id="vCRoll">0</span></div>
+          <div class="sr"><span class="sl">color bleed</span><input type="range" min="0" max="100" value="0" step="1" id="cColorBleed"><span class="sv" id="vCColorBleed">0</span></div>
+          <div class="sr"><span class="sl">saturation</span><input type="range" min="0" max="200" value="100" step="1" id="cSaturation"><span class="sv" id="vCSaturation">100</span></div>
+        </div>
+      </div>
 
       <div class="section">
         <div class="stitle"><span>Bake</span><span class="rec-status" id="recInd">ready</span></div>
@@ -367,6 +400,7 @@
 
 </div><!-- /app -->
 
+<script src="crt.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

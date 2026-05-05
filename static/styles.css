@@ -129,6 +129,9 @@ input[type=file] { display: none; }
 
 /* ─── Utility classes (extracted from inline styles) ─────────────────────── */
 #vid { max-width: 100%; max-height: 100%; display: block; }
+#crtCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+.crt-select { flex:1; background: #1a1a1a; color: #aaa; border: 1px solid #333; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+.crt-select:focus { border-color: #4ade80; outline: none; }
 .unlock-text { font-size: 12px; color: #666; }
 #processBox { display: none; margin-top: 6px; }
 .process-btns { display: flex; gap: 5px; margin-bottom: 5px; }

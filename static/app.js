@@ -922,6 +922,13 @@ function startLoop(){
       g('timeDisplay').textContent=fmtT(vid.currentTime)+' / '+fmtT(vid.duration);
     }
 
+    // CRT post-process on scrub video
+    if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=2 && vid.videoWidth) {
+      const crtC = g('crtCanvas');
+      crtC.style.display = 'block';
+      CRT.render(vid, vid.videoWidth, vid.videoHeight);
+    }
+
     // Depth composite (only if on that tab)
     if(currentTab==='depth'&&(dBgReady||dOvReady||dOv2Ready)) drawDepthFrame();
 
@@ -1624,6 +1631,56 @@ g('spConnectBtn').addEventListener('click', () => {
 });
 g('spPrevBtn').addEventListener('click', spPrev);
 g('spNextBtn').addEventListener('click', spNext);
+
+// ─── CRT ────────────────────────────────────────────────────────────────────
+CRT.init(g('crtCanvas'));
+
+const crtSliderMap = {
+  cScanlines:   ['scanlines', 100],
+  cCurvature:   ['curvature', 1],
+  cChromatic:   ['chromatic', 10],
+  cBloom:       ['bloom', 100],
+  cNoise:       ['noise', 100],
+  cVignette:    ['vignette', 100],
+  cDistortion:  ['distortion', 10],
+  cJitter:      ['jitter', 100],
+  cGlitch:      ['glitchIntensity', 100],
+  cRGBShift:    ['rgbShift', 10],
+  cRoll:        ['rollSpeed', 100],
+  cColorBleed:  ['colorBleed', 100],
+  cSaturation:  ['saturation', 100],
+};
+
+function syncCRTSliders() {
+  Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
+    const el = g(sliderId);
+    if (el) {
+      el.value = Math.round((CRT.getParam(param) || 0) * div);
+      const vId = 'vC' + sliderId.slice(1);
+      const vEl = g(vId);
+      if (vEl) vEl.textContent = el.value;
+    }
+  });
+}
+
+g('crtPreset').addEventListener('change', function() {
+  CRT.setPreset(this.value);
+  g('crtControls').style.display = this.value === 'off' ? 'none' : 'block';
+  g('crtCanvas').style.display = this.value === 'off' ? 'none' : 'block';
+  if (this.value === 'off') vid.style.display = 'block';
+  else vid.style.display = 'block'; // keep video visible underneath
+  syncCRTSliders();
+});
+
+Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
+  const el = g(sliderId);
+  if (el) el.addEventListener('input', () => {
+    CRT.setParam(param, parseFloat(el.value) / div);
+    const vId = 'vC' + sliderId.slice(1);
+    const vEl = g(vId);
+    if (vEl) vEl.textContent = el.value;
+  });
+});
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 [vid, dBgVid, dOvVid, dDpVid, dOv2Vid, dDp2Vid].forEach(v => { v.muted = true; v.volume = 0; });
