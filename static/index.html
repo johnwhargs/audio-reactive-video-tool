@@ -37,18 +37,16 @@
     <div class="sidebar" id="sidebar">
 
       <div class="section">
-        <div class="stitle">Video</div>
-        <button class="upload-btn" id="vidBtn">+ load video</button>
-        <input type="file" id="vidInput" accept="video/*">
+        <div class="stitle"><span>Video Pool</span><span class="clip-count" id="clipCount"></span></div>
+        <div class="btn-row btn-row-mb">
+          <button class="upload-btn" id="vidBtn">+ add clips</button>
+          <input type="file" id="vidInput" accept="video/*" multiple>
+          <button class="btn" id="batchCleanBtn" style="display:none;">clean all</button>
+        </div>
+        <div id="clipList" class="clip-list"></div>
         <div id="processBox">
-          <div class="process-btns">
-            <button class="btn active process-btn-main" id="processBtn">&#9881; clean for scrub</button>
-            <button class="btn process-btn-skip" id="skipProcessBtn">skip</button>
-          </div>
-          <div class="process-bar">
-            <div id="processProgress"></div>
-          </div>
-          <div id="processStatus">forces all-keyframe H.264 · enables frame-perfect scrubbing</div>
+          <div class="process-bar"><div id="processProgress"></div></div>
+          <div id="processStatus"></div>
         </div>
       </div>
 

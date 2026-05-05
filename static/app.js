@@ -23,6 +23,11 @@ const PEAK_HOLD_MS = 400;     // how long at max before flicker kicks in
 const vid = document.getElementById('vid');
 let videoUnlocked = false;
 
+// Clip pool
+let clipPool = []; // [{name, file, url, cleaned, cleanedUrl}]
+let activeClipIdx = -1;
+let lastClipIdx = -1; // for no-repeat
+
 // Depth videos — pair 1
 const dBgVid = document.createElement('video');
 const dOvVid = document.createElement('video');
@@ -923,10 +928,8 @@ function startLoop(){
   loop();
 }
 
-// ─── FFMPEG PROCESSING ───────────────────────────────────────────────────────
-let ffmpegInstance = null;
-let pendingVideoFile = null;
-let serverAvailable = null; // null=unknown, true/false after check
+// ─── CLIP POOL ──────────────────────────────────────────────────────────────
+let serverAvailable = null;
 
 async function checkServer() {
   if (serverAvailable !== null) return serverAvailable;
@@ -937,200 +940,130 @@ async function checkServer() {
   return serverAvailable;
 }
 
-async function handleVideoFile(input) {
-  const f = input.files[0]; if (!f) return;
-  pendingVideoFile = f;
+async function handleVideoFiles(input) {
+  const files = Array.from(input.files);
   input.value = '';
-  g('vidBtn').textContent = f.name.replace(/\.[^.]+$/, '');
-
-  // Check if server is available
-  const hasServer = await checkServer();
-  if (!hasServer) {
-    // No server — load video directly, skip preprocessing
-    loadVideoFromFile(f);
-    return;
+  for (const f of files) {
+    const url = URL.createObjectURL(f);
+    clipPool.push({ name: f.name.replace(/\.[^.]+$/,''), file: f, url, cleaned: false, cleanedUrl: null });
   }
+  renderClipList();
+  // Auto-activate first clip if none active
+  if (activeClipIdx === -1 && clipPool.length) activateClip(0);
+  // Show batch clean button if server available
+  const hasServer = await checkServer();
+  if (hasServer && clipPool.length) g('batchCleanBtn').style.display = '';
+}
 
-  // Show process box
+function activateClip(idx) {
+  if (idx < 0 || idx >= clipPool.length) return;
+  activeClipIdx = idx;
+  const clip = clipPool[idx];
+  const url = clip.cleanedUrl || clip.url;
+  vid.src = url; vid.muted = true; vid.load();
+  vid.onloadedmetadata = () => {
+    g('unlockOverlay').style.display = 'flex';
+    videoUnlocked = false;
+  };
+  renderClipList();
+}
+
+function removeClip(idx) {
+  if (clipPool[idx].url) URL.revokeObjectURL(clipPool[idx].url);
+  if (clipPool[idx].cleanedUrl) URL.revokeObjectURL(clipPool[idx].cleanedUrl);
+  clipPool.splice(idx, 1);
+  if (activeClipIdx === idx) {
+    activeClipIdx = clipPool.length ? 0 : -1;
+    if (activeClipIdx >= 0) activateClip(0);
+  } else if (activeClipIdx > idx) {
+    activeClipIdx--;
+  }
+  renderClipList();
+}
+
+function pickRandomClip() {
+  if (clipPool.length === 0) return;
+  if (clipPool.length === 1) { activateClip(0); return; }
+  let idx;
+  do { idx = Math.floor(Math.random() * clipPool.length); } while (idx === lastClipIdx);
+  lastClipIdx = idx;
+  activateClip(idx);
+}
+
+function renderClipList() {
+  const list = g('clipList');
+  g('clipCount').textContent = clipPool.length ? clipPool.length + ' clip' + (clipPool.length > 1 ? 's' : '') : '';
+  if (!clipPool.length) { list.innerHTML = ''; return; }
+  list.innerHTML = clipPool.map((c, i) => `
+    <div class="clip-item ${i === activeClipIdx ? 'active' : ''}" data-idx="${i}">
+      <span class="clip-name">${c.name}</span>
+      <span class="clip-status ${c.cleaned ? 'cleaned' : ''}">${c.cleaned ? 'cleaned' : 'raw'}</span>
+      <span class="clip-remove" data-remove="${i}">&times;</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.clip-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.dataset.remove !== undefined) return;
+      activateClip(parseInt(el.dataset.idx));
+    });
+  });
+  list.querySelectorAll('.clip-remove').forEach(el => {
+    el.addEventListener('click', () => removeClip(parseInt(el.dataset.remove)));
+  });
+}
+
+// ─── Batch clean ────────────────────────────────────────────────────────────
+async function batchClean() {
+  const btn = g('batchCleanBtn');
+  btn.classList.add('disabled');
+  const uncleaned = clipPool.filter(c => !c.cleaned);
+  if (!uncleaned.length) { btn.classList.remove('disabled'); return; }
+
   g('processBox').style.display = 'block';
-  g('processStatus').textContent = 'forces all-keyframe H.264 · enables frame-perfect scrubbing';
-  g('processProgress').style.width = '0%';
-  g('processProgress').style.background = '#60a5fa';
-  g('processBtn').textContent = '⚙ clean for scrub';
-  g('processBtn').classList.add('active');
-  g('processBtn').classList.remove('disabled');
-  g('processBtn').style.background = ''; g('processBtn').style.color = '';
-  g('skipProcessBtn').classList.remove('disabled');
-}
-
-function skipProcess() {
-  if (!pendingVideoFile) return;
-  g('processBox').style.display = 'none';
-  loadVideoFromFile(pendingVideoFile);
-}
-
-// Try server-side ffmpeg first, fall back to client-side wasm
-async function processVideo() {
-  if (!pendingVideoFile) return;
-  const btn = g('processBtn');
-  btn.classList.remove('active'); btn.classList.add('disabled');
-  g('skipProcessBtn').classList.add('disabled');
-
-  try {
-    await processVideoServer();
-  } catch(serverErr) {
-    console.log('Server preprocessing unavailable, falling back to wasm:', serverErr.message);
+  for (let i = 0; i < clipPool.length; i++) {
+    if (clipPool[i].cleaned) continue;
+    g('processStatus').textContent = `cleaning ${i + 1}/${clipPool.length}: ${clipPool[i].name}`;
+    g('processProgress').style.width = Math.round((i / clipPool.length) * 100) + '%';
+    g('processProgress').style.background = '#60a5fa';
     try {
-      await processVideoWasm();
-    } catch(wasmErr) {
-      console.error(wasmErr);
-      g('processStatus').textContent = 'error: ' + wasmErr.message + ' — try skip instead';
-      g('processProgress').style.background = '#f87171';
-      btn.classList.remove('disabled'); btn.classList.add('active');
-      g('skipProcessBtn').classList.remove('disabled');
+      const url = await cleanOneClipServer(clipPool[i].file);
+      clipPool[i].cleanedUrl = url;
+      clipPool[i].cleaned = true;
+      // If this is the active clip, reload it
+      if (i === activeClipIdx) activateClip(i);
+      renderClipList();
+    } catch(e) {
+      console.warn('clean failed for', clipPool[i].name, e);
+      g('processStatus').textContent = `failed: ${clipPool[i].name} — ${e.message}`;
     }
   }
+  g('processProgress').style.width = '100%';
+  g('processProgress').style.background = '#4ade80';
+  g('processStatus').textContent = 'all clips cleaned';
+  btn.classList.remove('disabled');
 }
 
-// ─── Server-side preprocessing ───────────────────────────────────────────────
-async function processVideoServer() {
-  g('processStatus').textContent = 'uploading to server...';
-  g('processProgress').style.width = '5%';
-
+async function cleanOneClipServer(file) {
   const formData = new FormData();
-  formData.append('file', pendingVideoFile);
-
+  formData.append('file', file);
   const resp = await fetch('/preprocess', { method: 'POST', body: formData });
   if (!resp.ok) throw new Error('server returned ' + resp.status);
   const { job_id } = await resp.json();
 
-  g('processStatus').textContent = 'server processing...';
-  g('processProgress').style.width = '10%';
-
-  // Poll via SSE for progress
   await new Promise((resolve, reject) => {
     const es = new EventSource(`/preprocess/${job_id}/stream`);
     es.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      g('processProgress').style.width = Math.max(10, data.progress) + '%';
-      if (data.progress > 0) {
-        g('processStatus').textContent = 'server processing... ' + data.progress + '%';
-      }
-      if (data.status === 'done') {
-        es.close();
-        resolve(job_id);
-      } else if (data.status === 'error') {
-        es.close();
-        reject(new Error(data.error || 'server processing failed'));
-      }
+      if (data.status === 'done') { es.close(); resolve(); }
+      else if (data.status === 'error') { es.close(); reject(new Error(data.error)); }
     };
-    es.onerror = () => { es.close(); reject(new Error('SSE connection lost')); };
+    es.onerror = () => { es.close(); reject(new Error('SSE lost')); };
   });
-
-  // Download processed file
-  g('processStatus').textContent = 'downloading processed file...';
-  g('processProgress').style.width = '95%';
 
   const dlResp = await fetch(`/preprocess/${job_id}/download`);
   if (!dlResp.ok) throw new Error('download failed');
   const blob = await dlResp.blob();
-  const url = URL.createObjectURL(blob);
-
-  finishProcess(url, blob);
-}
-
-// ─── Client-side wasm fallback ───────────────────────────────────────────────
-async function processVideoWasm() {
-  g('processStatus').textContent = 'loading ffmpeg.wasm...';
-  g('processProgress').style.width = '5%';
-
-  const { FFmpeg } = FFmpegWASM;
-  const { fetchFile } = FFmpegUtil;
-
-  if (!ffmpegInstance) {
-    ffmpegInstance = new FFmpeg();
-    ffmpegInstance.on('log', ({ message }) => {
-      const timeMatch = message.match(/time=(\d+:\d+:\d+)/);
-      if (timeMatch) {
-        g('processStatus').textContent = 'processing... ' + timeMatch[1];
-      }
-    });
-    ffmpegInstance.on('progress', ({ progress }) => {
-      g('processProgress').style.width = Math.round(5 + progress * 90) + '%';
-    });
-
-    g('processStatus').textContent = 'loading ffmpeg core...';
-    await ffmpegInstance.load({
-      coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.js',
-      wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm',
-    });
-  }
-
-  g('processStatus').textContent = 'reading file...';
-  g('processProgress').style.width = '10%';
-
-  const inputName = 'input.' + (pendingVideoFile.name.split('.').pop() || 'mp4');
-  const outputName = 'cleaned.mp4';
-
-  await ffmpegInstance.writeFile(inputName, await fetchFile(pendingVideoFile));
-
-  g('processStatus').textContent = 'converting to all-keyframe H.264...';
-  g('processProgress').style.width = '15%';
-
-  await ffmpegInstance.exec([
-    '-i', inputName,
-    '-vf', 'fps=30',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '18',
-    '-g', '1',
-    '-keyint_min', '1',
-    '-an',
-    outputName
-  ]);
-
-  g('processProgress').style.width = '95%';
-  g('processStatus').textContent = 'packaging output...';
-
-  const data = await ffmpegInstance.readFile(outputName);
-  const blob = new Blob([data.buffer], { type: 'video/mp4' });
-  const url = URL.createObjectURL(blob);
-
-  finishProcess(url, blob);
-}
-
-// ─── Shared completion ───────────────────────────────────────────────────────
-function finishProcess(url, blob) {
-  const btn = g('processBtn');
-  const sizeMB = (blob.size / 1024 / 1024).toFixed(1);
-  g('processProgress').style.width = '100%';
-  g('processStatus').innerHTML = `done · ${sizeMB}MB · <span style="color:#4ade80;cursor:pointer;" onclick="downloadCleaned()">download cleaned</span>`;
-
-  window._cleanedBlob = blob;
-  window._cleanedName = pendingVideoFile.name.replace(/\.[^.]+$/, '') + '_cleaned.mp4';
-
-  loadVideoFromUrl(url);
-  g('processBox').style.display = 'none';
-  g('processBox').style.display = 'block';
-  btn.textContent = '✓ cleaned'; btn.style.background = '#1e3a2f'; btn.style.color = '#4ade80';
-}
-
-function downloadCleaned() {
-  if (!window._cleanedBlob) return;
-  const a = document.createElement('a'); a.href = URL.createObjectURL(window._cleanedBlob);
-  a.download = window._cleanedName; a.click();
-}
-
-function loadVideoFromUrl(url) {
-  vid.src = url; vid.muted = true; vid.load();
-  vid.onloadedmetadata = () => { g('unlockOverlay').style.display='flex'; videoUnlocked=false; };
-  g('vidBtn').classList.add('loaded');
-}
-
-function loadVideoFromFile(file) {
-  const url = URL.createObjectURL(file);
-  loadVideoFromUrl(url);
-  g('vidBtn').textContent = file.name.replace(/\.[^.]+$/, '');
+  return URL.createObjectURL(blob);
 }
 
 // ─── LAYERS TAB (daisy) ──────────────────────────────────────────────────────
@@ -1243,9 +1176,8 @@ document.querySelectorAll('[data-tab]').forEach(el=>{
 // ─── Scrub tab ───
 g('unlockBtn').addEventListener('click', unlockVideo);
 bindFileBtn('vidBtn','vidInput');
-g('vidInput').addEventListener('change', function(){ handleVideoFile(this); });
-g('processBtn').addEventListener('click', processVideo);
-g('skipProcessBtn').addEventListener('click', skipProcess);
+g('vidInput').addEventListener('change', function(){ handleVideoFiles(this); });
+g('batchCleanBtn').addEventListener('click', batchClean);
 
 bindFileBtn('audioBtn','audioInput');
 g('audioInput').addEventListener('change', function(){ loadAudio(this); });
@@ -1501,6 +1433,9 @@ async function pollNowPlaying() {
 }
 
 function onTrackChange(track, features) {
+  // Swap to random clip from pool on track change
+  if (clipPool.length > 1) pickRandomClip();
+
   if (!features) return;
 
   // Apply BPM from Spotify if beat tracker hasn't locked

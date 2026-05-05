@@ -97,6 +97,18 @@ input[type=file] { display: none; }
 .ly-empty-state { color: #555; font-size: 12px; text-align: center; padding: 12px 0; }
 .ly-preview-label { position: absolute; bottom: 10px; left: 10px; font-size: 11px; color: #444; }
 
+/* ─── Clip Pool ────────────────────────────────────────────────────────── */
+.clip-count { font-size: 10px; color: #666; }
+.clip-list { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.clip-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; background: #1a1a1a; border: 1px solid #2a2a2a; font-size: 11px; color: #aaa; cursor: pointer; }
+.clip-item.active { border-color: #4ade80; color: #4ade80; background: #1a2a1a; }
+.clip-item.cleaning { border-color: #60a5fa; }
+.clip-item .clip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-item .clip-status { font-size: 9px; color: #555; flex-shrink: 0; }
+.clip-item .clip-status.cleaned { color: #4ade80; }
+.clip-item .clip-remove { color: #555; cursor: pointer; font-size: 14px; line-height: 1; }
+.clip-item .clip-remove:hover { color: #f87171; }
+
 /* ─── Spotify ──────────────────────────────────────────────────────────── */
 .sp-row { margin-top: 6px; }
 .sp-btn { width: 100%; }
