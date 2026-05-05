@@ -998,6 +998,9 @@ function pickRandomClip() {
 function renderClipList() {
   const list = g('clipList');
   g('clipCount').textContent = clipPool.length ? clipPool.length + ' clip' + (clipPool.length > 1 ? 's' : '') : '';
+  const hasUncleaned = clipPool.some(c => !c.cleaned);
+  const hint = g('cleanHint');
+  if (hint) hint.style.display = (clipPool.length && hasUncleaned) ? 'block' : 'none';
   if (!clipPool.length) { list.innerHTML = ''; return; }
   list.innerHTML = clipPool.map((c, i) => `
     <div class="clip-item ${i === activeClipIdx ? 'active' : ''}" data-idx="${i}">
