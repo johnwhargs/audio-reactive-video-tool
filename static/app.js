@@ -275,7 +275,9 @@ async function toggleSysAudio() {
     sysStream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false},video:true});
     sysStream.getVideoTracks().forEach(t=>t.stop());
     const tracks=sysStream.getAudioTracks(); if(!tracks.length){g('audioStatus').textContent='no audio — check share audio';sysStream=null;return;}
-    audioCtx.createMediaStreamSource(sysStream).connect(gainNode);
+    const sysSource=audioCtx.createMediaStreamSource(sysStream);
+    sysSource.connect(analyser);
+    // Don't connect to destination — prevents echo from system audio looping back
     btn.classList.add('active'); btn.textContent='sys on'; g('audioStatus').textContent=tracks[0].label||'system active';
     tracks[0].addEventListener('ended',()=>{sysStream=null;btn.classList.remove('active');btn.textContent='sys';});
     startLoop();
