@@ -1388,13 +1388,16 @@ setDepthDir2 = function(d) {
 // ─── SPOTIFY ────────────────────────────────────────────────────────────────
 const SPOTIFY_CLIENT_ID = 'a8a5fb0a10df43958dd52137e4051344';
 const SPOTIFY_REDIRECT = window.location.origin + '/callback';
-const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state';
+const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state user-read-recently-played';
 
 let spotifyToken = localStorage.getItem('spotify_token');
 let spotifyExpires = parseInt(localStorage.getItem('spotify_expires') || '0');
 let spotifyPoller = null;
 let spotifyCurrentTrackId = null;
 let spotifyFeatures = null;
+let spotifyIsPlaying = false;
+let spotifyProgressMs = 0;
+let spotifyDurationMs = 0;
 
 // PKCE helpers
 function generateRandomString(len) {
@@ -1493,6 +1496,9 @@ async function pollNowPlaying() {
   const track = data.item;
   const trackId = track.id;
   const changed = trackId !== spotifyCurrentTrackId;
+  spotifyIsPlaying = data.is_playing || false;
+  spotifyProgressMs = data.progress_ms || 0;
+  spotifyDurationMs = track.duration_ms || 0;
 
   if (changed) {
     spotifyCurrentTrackId = trackId;
@@ -1534,12 +1540,17 @@ function updateSpotifyUI(track) {
   const art = g('spArt');
   const infoRow = g('spInfo');
   const hint = g('spHint');
+  const controls = g('spControls');
+  const ppBtn = g('spPlayPauseBtn');
+  const progFill = g('spProgFill');
+  const progTime = g('spProgTime');
 
   if (!isSpotifyConnected()) {
     btn.textContent = 'connect spotify';
     btn.classList.remove('sp-connected');
     if (infoRow) infoRow.style.display = 'none';
     if (hint) hint.style.display = 'none';
+    if (controls) controls.style.display = 'none';
     if (g('spFeatures')) g('spFeatures').textContent = '';
     return;
   }
@@ -1547,6 +1558,18 @@ function updateSpotifyUI(track) {
   btn.textContent = 'disconnect';
   btn.classList.add('sp-connected');
   if (hint) hint.style.display = 'block';
+  if (controls) controls.style.display = 'flex';
+
+  // Play/pause button state
+  if (ppBtn) ppBtn.textContent = spotifyIsPlaying ? '⏸' : '▶';
+
+  // Progress bar
+  if (progFill && spotifyDurationMs > 0) {
+    progFill.style.width = Math.round((spotifyProgressMs / spotifyDurationMs) * 100) + '%';
+  }
+  if (progTime) {
+    progTime.textContent = fmtT(spotifyProgressMs / 1000) + ' / ' + fmtT(spotifyDurationMs / 1000);
+  }
 
   if (track) {
     const artist = track.artists.map(a => a.name).join(', ');
@@ -1564,6 +1587,26 @@ function updateSpotifyUI(track) {
   }
 }
 
+// ─── Spotify playback controls ──────────────────────────────────────────────
+async function spotifyPut(endpoint) {
+  if (!isSpotifyConnected()) return;
+  await fetch('https://api.spotify.com/v1' + endpoint, {
+    method: 'PUT', headers: { 'Authorization': 'Bearer ' + spotifyToken }
+  });
+  setTimeout(pollNowPlaying, 300);
+}
+async function spotifyPost(endpoint) {
+  if (!isSpotifyConnected()) return;
+  await fetch('https://api.spotify.com/v1' + endpoint, {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + spotifyToken }
+  });
+  setTimeout(pollNowPlaying, 300);
+}
+
+function spTogglePlay() { spotifyIsPlaying ? spotifyPut('/me/player/pause') : spotifyPut('/me/player/play'); }
+function spNext() { spotifyPost('/me/player/next'); }
+function spPrev() { spotifyPost('/me/player/previous'); }
+
 function startSpotifyPoller() {
   if (spotifyPoller) clearInterval(spotifyPoller);
   pollNowPlaying();
@@ -1575,6 +1618,9 @@ g('spConnectBtn').addEventListener('click', () => {
   if (isSpotifyConnected()) spotifyLogout();
   else spotifyAuth();
 });
+g('spPrevBtn').addEventListener('click', spPrev);
+g('spPlayPauseBtn').addEventListener('click', spTogglePlay);
+g('spNextBtn').addEventListener('click', spNext);
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 [vid, dBgVid, dOvVid, dDpVid, dOv2Vid, dDp2Vid].forEach(v => { v.muted = true; v.volume = 0; });

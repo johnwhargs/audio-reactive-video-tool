@@ -113,9 +113,17 @@ input[type=file] { display: none; }
 .sp-row { margin-top: 6px; }
 .sp-btn { width: 100%; }
 .sp-connected { background: #1a2f1e !important; color: #1db954 !important; border-color: #1db954 !important; }
-.sp-info { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 20px; }
+.sp-info { display: flex; align-items: center; gap: 8px; margin-top: 6px; min-height: 20px; }
+.sp-info-text { display: flex; flex-direction: column; gap: 2px; overflow: hidden; min-width: 0; }
 .sp-art { width: 56px; height: 56px; border-radius: 4px; flex-shrink: 0; }
 .sp-track { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-time { font-size: 9px; color: #555; }
+.sp-progress { height: 3px; background: #1a1a1a; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.sp-prog-fill { height: 100%; background: #1db954; width: 0%; transition: width 0.3s linear; border-radius: 2px; }
+.sp-controls { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 6px; }
+.sp-ctrl { background: none; border: 1px solid #333; color: #aaa; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.sp-ctrl:hover { border-color: #1db954; color: #1db954; }
+.sp-ctrl-play { width: 38px; height: 38px; font-size: 14px; }
 .sp-features { font-size: 10px; color: #666; margin-top: 3px; }
 .sp-hint { font-size: 10px; color: #1db954; margin-top: 4px; line-height: 1.4; }
 
