@@ -1,22 +1,63 @@
 <!DOCTYPE html>
 <html><head><title>Spotify Auth</title></head>
 <body>
+<p id="status">Authenticating...</p>
 <script>
-// Extract token from hash fragment (implicit grant)
-const hash = window.location.hash.substring(1);
-const params = new URLSearchParams(hash);
-const token = params.get('access_token');
-const error = params.get('error');
+const CLIENT_ID = 'a8a5fb0a10df43958dd52137e4051344';
+const REDIRECT_URI = window.location.origin + '/callback';
 
-if (token) {
-  const expiresIn = parseInt(params.get('expires_in') || '3600');
-  const expiresAt = Date.now() + expiresIn * 1000;
-  localStorage.setItem('spotify_token', token);
+(async function() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const error = params.get('error');
+
+  if (error) {
+    document.getElementById('status').textContent = 'Auth denied: ' + error;
+    setTimeout(() => window.location.href = '/', 3000);
+    return;
+  }
+
+  if (!code) {
+    document.getElementById('status').textContent = 'No auth code received';
+    setTimeout(() => window.location.href = '/', 3000);
+    return;
+  }
+
+  const verifier = localStorage.getItem('spotify_verifier');
+  if (!verifier) {
+    document.getElementById('status').textContent = 'Missing PKCE verifier — try again';
+    setTimeout(() => window.location.href = '/', 3000);
+    return;
+  }
+
+  // Exchange code for token
+  const resp = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: verifier
+    })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    document.getElementById('status').textContent = 'Token exchange failed: ' + err;
+    setTimeout(() => window.location.href = '/', 5000);
+    return;
+  }
+
+  const data = await resp.json();
+  const expiresAt = Date.now() + (data.expires_in || 3600) * 1000;
+  localStorage.setItem('spotify_token', data.access_token);
   localStorage.setItem('spotify_expires', expiresAt.toString());
+  if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
+  localStorage.removeItem('spotify_verifier');
+
   window.location.href = '/';
-} else {
-  document.body.textContent = 'Auth failed: ' + (error || 'no token');
-  setTimeout(() => window.location.href = '/', 3000);
-}
+})();
 </script>
 </body></html>
