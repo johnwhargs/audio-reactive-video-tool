@@ -272,7 +272,7 @@ async function toggleSysAudio() {
   if(sysStream){sysStream.getTracks().forEach(t=>t.stop());sysStream=null;btn.classList.remove('active');btn.textContent='sys';g('audioStatus').textContent='stopped';return;}
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
-    sysStream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false},video:false});
+    sysStream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false},video:true});
     sysStream.getVideoTracks().forEach(t=>t.stop());
     const tracks=sysStream.getAudioTracks(); if(!tracks.length){g('audioStatus').textContent='no audio — check share audio';sysStream=null;return;}
     audioCtx.createMediaStreamSource(sysStream).connect(gainNode);
