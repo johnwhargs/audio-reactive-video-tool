@@ -1523,28 +1523,33 @@ function updateSpotifyUI(track) {
   const btn = g('spConnectBtn');
   const info = g('spTrackInfo');
   const art = g('spArt');
+  const infoRow = g('spInfo');
+  const hint = g('spHint');
 
   if (!isSpotifyConnected()) {
     btn.textContent = 'connect spotify';
     btn.classList.remove('sp-connected');
-    if (info) info.textContent = '';
-    if (art) art.style.display = 'none';
+    if (infoRow) infoRow.style.display = 'none';
+    if (hint) hint.style.display = 'none';
     if (g('spFeatures')) g('spFeatures').textContent = '';
     return;
   }
 
   btn.textContent = 'disconnect';
   btn.classList.add('sp-connected');
+  if (hint) hint.style.display = 'block';
 
   if (track) {
     const artist = track.artists.map(a => a.name).join(', ');
     const name = track.name;
+    if (infoRow) infoRow.style.display = 'flex';
     if (info) info.textContent = name + ' — ' + artist;
     if (art && track.album && track.album.images && track.album.images.length) {
       art.src = track.album.images[track.album.images.length - 1].url;
       art.style.display = 'block';
     }
   } else {
+    if (infoRow) infoRow.style.display = 'flex';
     if (info) info.textContent = 'nothing playing';
     if (art) art.style.display = 'none';
   }

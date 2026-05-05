@@ -73,6 +73,15 @@
           <div class="vu-bar" id="vb8"></div><div class="vu-bar" id="vb9"></div><div class="vu-bar" id="vba"></div><div class="vu-bar" id="vbb"></div>
           <div class="vu-bar" id="vbc"></div><div class="vu-bar" id="vbd"></div><div class="vu-bar" id="vbe"></div><div class="vu-bar" id="vbf"></div>
         </div>
+        <div class="sp-row">
+          <button class="btn sp-btn" id="spConnectBtn">connect spotify</button>
+        </div>
+        <div class="sp-info" id="spInfo" style="display:none;">
+          <img id="spArt" class="sp-art" style="display:none;">
+          <span id="spTrackInfo" class="sp-track"></span>
+        </div>
+        <div class="sp-features" id="spFeatures"></div>
+        <div class="sp-hint" id="spHint" style="display:none;">play music on Spotify · click <b>sys</b> · share a tab · check "Share audio"</div>
       </div>
 
       <div class="section">
@@ -162,15 +171,6 @@
         <div class="sr"><span class="sl">flicker range</span><input type="range" min="1" max="50" value="5" step="1" id="sFlickerRange"><span class="sv" id="vFlickerRange">5</span></div>
       </div>
 
-      <div class="section">
-        <div class="stitle">Spotify</div>
-        <button class="btn" id="spConnectBtn">connect spotify</button>
-        <div class="sp-info">
-          <img id="spArt" class="sp-art" style="display:none;">
-          <span id="spTrackInfo" class="sp-track"></span>
-        </div>
-        <div class="sp-features" id="spFeatures"></div>
-      </div>
 
       <div class="section">
         <div class="stitle"><span>Bake</span><span class="rec-status" id="recInd">ready</span></div>

@@ -98,11 +98,14 @@ input[type=file] { display: none; }
 .ly-preview-label { position: absolute; bottom: 10px; left: 10px; font-size: 11px; color: #444; }
 
 /* ─── Spotify ──────────────────────────────────────────────────────────── */
+.sp-row { margin-top: 6px; }
+.sp-btn { width: 100%; }
 .sp-connected { background: #1a2f1e !important; color: #1db954 !important; border-color: #1db954 !important; }
 .sp-info { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 20px; }
-.sp-art { width: 28px; height: 28px; border-radius: 3px; }
+.sp-art { width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0; }
 .sp-track { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-features { font-size: 10px; color: #666; margin-top: 3px; }
+.sp-hint { font-size: 10px; color: #1db954; margin-top: 4px; line-height: 1.4; }
 
 /* ─── Utility classes (extracted from inline styles) ─────────────────────── */
 #vid { max-width: 100%; max-height: 100%; display: block; }
