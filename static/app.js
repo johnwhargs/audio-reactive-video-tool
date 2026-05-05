@@ -962,8 +962,16 @@ function activateClip(idx) {
   const url = clip.cleanedUrl || clip.url;
   vid.src = url; vid.muted = true; vid.load();
   vid.onloadedmetadata = () => {
-    g('unlockOverlay').style.display = 'flex';
-    videoUnlocked = false;
+    // Auto-unlock: play then immediately pause to enable seeking
+    vid.play().then(() => {
+      vid.pause(); vid.currentTime = 0;
+      videoUnlocked = true;
+      g('unlockOverlay').style.display = 'none';
+    }).catch(() => {
+      // Fallback: show manual unlock if autoplay blocked
+      g('unlockOverlay').style.display = 'flex';
+      videoUnlocked = false;
+    });
   };
   renderClipList();
 }
@@ -1405,7 +1413,7 @@ async function spotifyFetch(endpoint) {
     if (refreshed) return spotifyFetch(endpoint);
     spotifyLogout(); return null;
   }
-  if (resp.status === 204) return null;
+  if (resp.status === 204 || resp.status === 403) return null;
   if (!resp.ok) return null;
   return resp.json();
 }
@@ -1423,8 +1431,9 @@ async function pollNowPlaying() {
 
   if (changed) {
     spotifyCurrentTrackId = trackId;
-    // Fetch audio features for auto-tune hints
-    const features = await spotifyFetch('/audio-features/' + trackId);
+    // Fetch audio features (may 403 without Premium)
+    let features = null;
+    try { features = await spotifyFetch('/audio-features/' + trackId); } catch(e) {}
     spotifyFeatures = features;
     onTrackChange(track, features);
   }
