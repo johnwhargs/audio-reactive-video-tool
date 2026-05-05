@@ -924,15 +924,33 @@ function startLoop(){
 // ─── FFMPEG PROCESSING ───────────────────────────────────────────────────────
 let ffmpegInstance = null;
 let pendingVideoFile = null;
+let serverAvailable = null; // null=unknown, true/false after check
+
+async function checkServer() {
+  if (serverAvailable !== null) return serverAvailable;
+  try {
+    const r = await fetch('/preprocess', { method: 'HEAD' });
+    serverAvailable = r.status !== 404;
+  } catch(e) { serverAvailable = false; }
+  return serverAvailable;
+}
 
 async function handleVideoFile(input) {
   const f = input.files[0]; if (!f) return;
   pendingVideoFile = f;
   input.value = '';
+  g('vidBtn').textContent = f.name.replace(/\.[^.]+$/, '');
+
+  // Check if server is available
+  const hasServer = await checkServer();
+  if (!hasServer) {
+    // No server — load video directly, skip preprocessing
+    loadVideoFromFile(f);
+    return;
+  }
 
   // Show process box
   g('processBox').style.display = 'block';
-  g('vidBtn').textContent = f.name.replace(/\.[^.]+$/, '');
   g('processStatus').textContent = 'forces all-keyframe H.264 · enables frame-perfect scrubbing';
   g('processProgress').style.width = '0%';
   g('processProgress').style.background = '#60a5fa';
