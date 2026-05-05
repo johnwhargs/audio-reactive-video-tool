@@ -948,11 +948,8 @@ async function handleVideoFiles(input) {
     clipPool.push({ name: f.name.replace(/\.[^.]+$/,''), file: f, url, cleaned: false, cleanedUrl: null });
   }
   renderClipList();
-  // Auto-activate first clip if none active
   if (activeClipIdx === -1 && clipPool.length) activateClip(0);
-  // Show batch clean button if server available
-  const hasServer = await checkServer();
-  if (hasServer && clipPool.length) g('batchCleanBtn').style.display = '';
+  if (clipPool.length) g('batchCleanBtn').style.display = '';
 }
 
 function activateClip(idx) {
@@ -1021,23 +1018,34 @@ function renderClipList() {
 }
 
 // ─── Batch clean ────────────────────────────────────────────────────────────
+let ffmpegInstance = null;
+let ffmpegLoaded = false;
+
 async function batchClean() {
   const btn = g('batchCleanBtn');
   btn.classList.add('disabled');
   const uncleaned = clipPool.filter(c => !c.cleaned);
   if (!uncleaned.length) { btn.classList.remove('disabled'); return; }
 
+  const hasServer = await checkServer();
   g('processBox').style.display = 'block';
+
   for (let i = 0; i < clipPool.length; i++) {
     if (clipPool[i].cleaned) continue;
-    g('processStatus').textContent = `cleaning ${i + 1}/${clipPool.length}: ${clipPool[i].name}`;
-    g('processProgress').style.width = Math.round((i / clipPool.length) * 100) + '%';
+    const total = clipPool.length;
+    const num = i + 1;
+    g('processStatus').textContent = `cleaning ${num}/${total}: ${clipPool[i].name}`;
+    g('processProgress').style.width = Math.round((i / total) * 100) + '%';
     g('processProgress').style.background = '#60a5fa';
     try {
-      const url = await cleanOneClipServer(clipPool[i].file);
+      let url;
+      if (hasServer) {
+        url = await cleanOneClipServer(clipPool[i].file);
+      } else {
+        url = await cleanOneClipWasm(clipPool[i].file, num, total);
+      }
       clipPool[i].cleanedUrl = url;
       clipPool[i].cleaned = true;
-      // If this is the active clip, reload it
       if (i === activeClipIdx) activateClip(i);
       renderClipList();
     } catch(e) {
@@ -1071,6 +1079,63 @@ async function cleanOneClipServer(file) {
   const dlResp = await fetch(`/preprocess/${job_id}/download`);
   if (!dlResp.ok) throw new Error('download failed');
   const blob = await dlResp.blob();
+  return URL.createObjectURL(blob);
+}
+
+async function ensureFFmpeg() {
+  if (ffmpegLoaded) return;
+  const { FFmpeg } = FFmpegWASM;
+
+  if (!ffmpegInstance) {
+    ffmpegInstance = new FFmpeg();
+    ffmpegInstance.on('progress', ({ progress }) => {
+      g('processProgress').style.width = Math.round(10 + progress * 85) + '%';
+    });
+  }
+
+  g('processStatus').textContent = 'loading ffmpeg (first time ~30MB)...';
+  g('processProgress').style.width = '5%';
+
+  // Convert cross-origin core files to blob URLs (same-origin Workers)
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd';
+  const coreJS = await fetch(baseURL + '/ffmpeg-core.js').then(r => r.blob()).then(b => URL.createObjectURL(b));
+  const coreWasm = await fetch(baseURL + '/ffmpeg-core.wasm').then(r => r.blob()).then(b => URL.createObjectURL(b));
+
+  await ffmpegInstance.load({ coreURL: coreJS, wasmURL: coreWasm });
+  ffmpegLoaded = true;
+}
+
+async function cleanOneClipWasm(file, num, total) {
+  await ensureFFmpeg();
+  const { fetchFile } = FFmpegUtil;
+
+  g('processStatus').textContent = `cleaning ${num}/${total}: ${file.name} (wasm)`;
+  g('processProgress').style.width = '10%';
+
+  const inputName = 'input.' + (file.name.split('.').pop() || 'mp4');
+  const outputName = 'cleaned.mp4';
+
+  await ffmpegInstance.writeFile(inputName, await fetchFile(file));
+
+  await ffmpegInstance.exec([
+    '-i', inputName,
+    '-vf', 'fps=30',
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '18',
+    '-g', '1',
+    '-keyint_min', '1',
+    '-an',
+    outputName
+  ]);
+
+  const data = await ffmpegInstance.readFile(outputName);
+  const blob = new Blob([data.buffer], { type: 'video/mp4' });
+
+  // Clean up temp files
+  try { await ffmpegInstance.deleteFile(inputName); } catch(e) {}
+  try { await ffmpegInstance.deleteFile(outputName); } catch(e) {}
+
   return URL.createObjectURL(blob);
 }
 
