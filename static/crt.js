@@ -541,7 +541,9 @@ function compileShader(type, src) {
 
 function render(source, width, height) {
   if (!gl || !enabled) return;
-  canvas.width = width; canvas.height = height;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width; canvas.height = height;
+  }
   gl.viewport(0, 0, width, height);
 
   // Upload source texture

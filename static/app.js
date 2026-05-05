@@ -925,8 +925,19 @@ function startLoop(){
     // CRT post-process on scrub video
     if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=2 && vid.videoWidth) {
       const crtC = g('crtCanvas');
+      // Match canvas position to video element
+      const vr = vid.getBoundingClientRect();
+      const pr = vid.parentElement.getBoundingClientRect();
+      crtC.style.left = (vr.left - pr.left) + 'px';
+      crtC.style.top = (vr.top - pr.top) + 'px';
+      crtC.style.width = vr.width + 'px';
+      crtC.style.height = vr.height + 'px';
       crtC.style.display = 'block';
+      vid.style.opacity = '0';
       CRT.render(vid, vid.videoWidth, vid.videoHeight);
+    } else if(currentTab==='scrub' && !CRT.isEnabled()) {
+      vid.style.opacity = '1';
+      g('crtCanvas').style.display = 'none';
     }
 
     // Depth composite (only if on that tab)
