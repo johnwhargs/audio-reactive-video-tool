@@ -923,9 +923,8 @@ function startLoop(){
     }
 
     // CRT post-process on scrub video
-    if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=1 && vid.videoWidth) {
+    if(currentTab==='scrub' && CRT.isEnabled() && vid.videoWidth) {
       const crtC = g('crtCanvas');
-      // Match canvas position to video element
       const vr = vid.getBoundingClientRect();
       const pr = vid.parentElement.getBoundingClientRect();
       crtC.style.left = (vr.left - pr.left) + 'px';
@@ -933,10 +932,20 @@ function startLoop(){
       crtC.style.width = vr.width + 'px';
       crtC.style.height = vr.height + 'px';
       crtC.style.display = 'block';
-      vid.style.opacity = '0';
-      CRT.render(vid, vid.videoWidth, vid.videoHeight);
+      vid.style.visibility = 'hidden';
+      // Draw video to offscreen canvas first (works at any readyState)
+      if(!window._crtOffscreen) {
+        window._crtOffscreen = document.createElement('canvas');
+        window._crtOffCtx = window._crtOffscreen.getContext('2d');
+      }
+      const oc = window._crtOffscreen;
+      if(oc.width !== vid.videoWidth || oc.height !== vid.videoHeight) {
+        oc.width = vid.videoWidth; oc.height = vid.videoHeight;
+      }
+      window._crtOffCtx.drawImage(vid, 0, 0, oc.width, oc.height);
+      CRT.render(oc, oc.width, oc.height);
     } else if(currentTab==='scrub' && !CRT.isEnabled()) {
-      vid.style.opacity = '1';
+      vid.style.visibility = 'visible';
       g('crtCanvas').style.display = 'none';
     }
 
