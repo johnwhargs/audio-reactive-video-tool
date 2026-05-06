@@ -1814,10 +1814,24 @@ let _ltTimer = null;
 let _ltMode = 'none'; // none, slide, on, greek
 let _ltLastTrack = null;
 
-// Latin → Greek transliteration map
-const _greekMap = {A:'Α',B:'Β',C:'Ψ',D:'Δ',E:'Ε',F:'Φ',G:'Γ',H:'Η',I:'Ι',J:'Ξ',K:'Κ',L:'Λ',M:'Μ',N:'Ν',O:'Ο',P:'Π',Q:'Θ',R:'Ρ',S:'Σ',T:'Τ',U:'Υ',V:'Β',W:'Ω',X:'Χ',Y:'Ψ',Z:'Ζ',
+// Fake Greek fallback (Latin → Greek lookalikes)
+const _fakeGreek = {A:'Α',B:'Β',C:'Ψ',D:'Δ',E:'Ε',F:'Φ',G:'Γ',H:'Η',I:'Ι',J:'Ξ',K:'Κ',L:'Λ',M:'Μ',N:'Ν',O:'Ο',P:'Π',Q:'Θ',R:'Ρ',S:'Σ',T:'Τ',U:'Υ',V:'Β',W:'Ω',X:'Χ',Y:'Ψ',Z:'Ζ',
   a:'α',b:'β',c:'ψ',d:'δ',e:'ε',f:'φ',g:'γ',h:'η',i:'ι',j:'ξ',k:'κ',l:'λ',m:'μ',n:'ν',o:'ο',p:'π',q:'θ',r:'ρ',s:'σ',t:'τ',u:'υ',v:'β',w:'ω',x:'χ',y:'ψ',z:'ζ'};
-function toGreek(str) { return str.split('').map(c => _greekMap[c] || c).join(''); }
+function fakeGreek(str) { return str.split('').map(c => _fakeGreek[c] || c).join(''); }
+
+// Google Translate free endpoint, fake Greek fallback
+let _translateCache = {};
+async function translateToGreek(text) {
+  if (!text) return text;
+  if (_translateCache[text]) return _translateCache[text];
+  try {
+    const resp = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=el&dt=t&q=' + encodeURIComponent(text));
+    const data = await resp.json();
+    const result = data[0].map(s => s[0]).join('');
+    _translateCache[text] = result;
+    return result;
+  } catch(e) { return fakeGreek(text); }
+}
 
 document.querySelectorAll('[data-ltmode]').forEach(btn => {
   btn.addEventListener('click', function() {
@@ -1828,18 +1842,22 @@ document.querySelectorAll('[data-ltmode]').forEach(btn => {
   });
 });
 
-function showLowerThird(track) {
+async function showLowerThird(track) {
   if (!track || _ltMode === 'none') return;
   _ltLastTrack = track;
   const lt = g('lowerThird');
   const art = g('ltArt');
   const song = g('ltSong');
   const artist = g('ltArtist');
-  const useGreek = _ltMode === 'greek';
   const songText = track.name || '';
   const artistText = track.artists ? track.artists.map(a => a.name).join(', ') : '';
-  song.textContent = useGreek ? toGreek(songText) : songText;
-  artist.textContent = useGreek ? toGreek(artistText) : artistText;
+  if (_ltMode === 'greek') {
+    song.textContent = await translateToGreek(songText);
+    artist.textContent = await translateToGreek(artistText);
+  } else {
+    song.textContent = songText;
+    artist.textContent = artistText;
+  }
   if (track.album && track.album.images && track.album.images.length) {
     art.src = (track.album.images[1] || track.album.images[0]).url;
     art.style.display = 'block';
