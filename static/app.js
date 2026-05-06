@@ -956,9 +956,43 @@ function startLoop(){
           jitter:          spike ? amp * 0.8 : amp * 0.02,
           rgbShift:        spike ? amp * 3 + rand * 2 : 0,
           distortion:      spike ? amp * 2 : 0,
+          distortion2:     spike ? amp * 1.5 : 0,
           screenTear:      spike ? rand : 0,
           noise:           spike ? amp * 0.15 : amp * 0.01,
           glitchSpeed:     1 + amp * 4,
+          colorBleed:      spike ? amp * 0.5 : amp * 0.05,
+          rollSpeed:       spike ? amp * 0.3 : 0,
+          rollLine:        spike ? 0.4 : 0,
+          vSyncWobble:     spike ? amp * 0.5 : amp * 0.02,
+          hSyncLoss:       spike ? amp * 0.4 : 0,
+          dataBend:        spike ? amp * 0.5 : 0,
+          pixelate:        spike && rand > 0.8 ? amp * 0.3 : 0,
+          pixelStretch:    spike ? amp * 0.5 : 0,
+          clockSkew:       spike ? amp * 0.6 : 0,
+          bitCrush:        spike ? amp * 0.4 : 0,
+          lineCorrupt:     spike ? amp * 0.4 : amp * 0.01,
+          colorDrift:      amp * 0.3,
+          feedback:        amp * 0.3,
+          staticBurst:     spike ? rand * 0.5 : 0,
+          channelSwap:     spike && rand > 0.7 ? Math.floor(rand * 5) : 0,
+          linesSkip:       spike ? amp * 0.2 : 0,
+          shockwave:       spike ? amp * 0.3 : 0,
+          ghosting:        amp * 0.5 + (spike ? 0.3 : 0),
+          ruttEtra:        spike ? amp * 0.3 : 0,
+          vCollapse:       spike && rand > 0.9 ? amp * 0.3 : 0,
+          sCurve:          spike ? amp * 0.3 : 0,
+          emi:             spike ? amp * 0.4 : amp * 0.02,
+          humBar:          amp * 0.2,
+          zoomBlur:        spike ? amp * 0.3 : 0,
+          lumaDisplace:    spike ? amp * 0.4 : amp * 0.02,
+          noiseDisplace:   spike ? amp * 0.3 : 0,
+          solarize:        spike && rand > 0.85 ? amp * 0.4 : 0,
+          posterize:       spike && rand > 0.9 ? amp * 0.3 : 0,
+          invert:          spike && rand > 0.95 ? 1.0 : 0,
+          vortex:          spike && rand > 0.9 ? amp * 0.2 : 0,
+          waveDistort:     spike ? amp * 0.3 : 0,
+          mirror:          spike && rand > 0.95 ? Math.floor(rand * 6) + 2 : 0,
+          flicker:         spike ? amp * 0.06 : amp * 0.01,
         };
         Object.entries(vals).forEach(([k,v]) => CRT.setParam(k, v));
         syncCRTSliders();
@@ -1789,7 +1823,7 @@ Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
 
 // Amplitude-driven random glitch
 let crtAmpGlitch = false;
-const ampGlitchParams = ['glitchIntensity','chromatic','jitter','rgbShift','distortion','screenTear','noise','glitchSpeed'];
+const ampGlitchParams = Object.keys(CRT.DEFAULTS);
 g('cAmpGlitch').addEventListener('click', function() {
   crtAmpGlitch = !crtAmpGlitch;
   this.textContent = crtAmpGlitch ? 'amp glitch: on' : 'amp glitch: off';
