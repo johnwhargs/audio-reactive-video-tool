@@ -945,6 +945,21 @@ function startLoop(){
         oc.width = vid.videoWidth; oc.height = vid.videoHeight;
       }
       window._crtOCtx.drawImage(vid, 0, 0, oc.width, oc.height);
+      // Amplitude-driven glitch
+      if(crtAmpGlitch) {
+        const amp = envelopeAmp / 255;
+        const rand = Math.random();
+        // Spikes at peaks — random chance scales with amplitude
+        const spike = amp > 0.7 && rand < amp * 0.4;
+        CRT.setParam('glitchIntensity', spike ? amp * 0.8 + rand * 0.2 : amp * 0.05);
+        CRT.setParam('chromatic', spike ? amp * 5 : amp * 0.5);
+        CRT.setParam('jitter', spike ? amp * 0.8 : amp * 0.02);
+        CRT.setParam('rgbShift', spike ? amp * 3 + rand * 2 : 0);
+        CRT.setParam('distortion', spike ? amp * 2 : 0);
+        CRT.setParam('screenTear', spike ? rand : 0);
+        CRT.setParam('noise', spike ? amp * 0.15 : amp * 0.01);
+        CRT.setParam('glitchSpeed', 1 + amp * 4);
+      }
       CRT.render(oc, oc.width, oc.height);
     } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
@@ -1703,6 +1718,14 @@ Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
     const vEl = g(vId);
     if (vEl) vEl.textContent = el.value;
   });
+});
+
+// Amplitude-driven random glitch
+let crtAmpGlitch = false;
+g('cAmpGlitch').addEventListener('click', function() {
+  crtAmpGlitch = !crtAmpGlitch;
+  this.textContent = crtAmpGlitch ? 'on' : 'off';
+  this.classList.toggle('active', crtAmpGlitch);
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
