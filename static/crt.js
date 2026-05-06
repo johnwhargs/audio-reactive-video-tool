@@ -347,13 +347,33 @@ vec2 RGBtoUV(vec3 rgb) {
 }
 
 vec3 noiseBackground(vec2 uv, float t, float scale) {
-  vec2 p = uv * scale * 100.0;
-  float n1 = hash2(p + vec2(t * 1000.0, 0.0));
-  float n2 = snoise(p * 0.3 + vec2(t * 5.0, t * 3.0));
-  float n3 = snoise(p * 0.08 + vec2(t * 2.0, -t * 1.5));
-  float n = n1 * 0.6 + n2 * 0.25 + n3 * 0.15;
-  float flash = step(0.97, hash1(floor(t * 8.0) * 7.3)) * 0.4;
-  return vec3(n + flash);
+  // Scanline-quantized static like analog TV snow
+  float scanY = floor(uv.y * 480.0);
+  float fieldT = floor(t * 60.0); // new noise every frame at 60fps
+
+  // Sharp per-pixel static (different every frame)
+  float n1 = hash2(vec2(uv.x * 1920.0 * scale, scanY) + vec2(fieldT * 13.7, fieldT * 7.3));
+
+  // Horizontal streaks (scanline-coherent noise)
+  float streak = hash1(scanY * 31.0 + fieldT * 17.1);
+  float streakOn = step(0.7, streak);
+  float streakBright = hash1(scanY * 73.0 + fieldT * 11.3) * streakOn;
+
+  // Per-scanline brightness variation (CRT static flicker)
+  float lineBright = 0.7 + hash1(scanY + fieldT * 3.3) * 0.6;
+
+  // Occasional horizontal tear/roll bars
+  float rollBar = smoothstep(0.0, 0.02, abs(fract(uv.y + t * 0.3) - 0.5));
+
+  // Full-screen brightness pump (CRT AGC hunting)
+  float pump = 0.8 + sin(fieldT * 0.7) * 0.2;
+
+  float n = (n1 * 0.7 + streakBright * 0.3) * lineBright * rollBar * pump;
+
+  // Occasional bright flash frames
+  float flash = step(0.95, hash1(fieldT * 7.7)) * 0.5;
+
+  return vec3(clamp(n + flash, 0.0, 1.0));
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
