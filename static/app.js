@@ -945,20 +945,30 @@ function startLoop(){
         oc.width = vid.videoWidth; oc.height = vid.videoHeight;
       }
       window._crtOCtx.drawImage(vid, 0, 0, oc.width, oc.height);
-      // Amplitude-driven glitch
+      // Amplitude-driven glitch — also updates sliders
       if(crtAmpGlitch) {
         const amp = envelopeAmp / 255;
         const rand = Math.random();
-        // Spikes at peaks — random chance scales with amplitude
         const spike = amp > 0.7 && rand < amp * 0.4;
-        CRT.setParam('glitchIntensity', spike ? amp * 0.8 + rand * 0.2 : amp * 0.05);
-        CRT.setParam('chromatic', spike ? amp * 5 : amp * 0.5);
-        CRT.setParam('jitter', spike ? amp * 0.8 : amp * 0.02);
-        CRT.setParam('rgbShift', spike ? amp * 3 + rand * 2 : 0);
-        CRT.setParam('distortion', spike ? amp * 2 : 0);
-        CRT.setParam('screenTear', spike ? rand : 0);
-        CRT.setParam('noise', spike ? amp * 0.15 : amp * 0.01);
-        CRT.setParam('glitchSpeed', 1 + amp * 4);
+        const vals = {
+          glitchIntensity: spike ? amp * 0.8 + rand * 0.2 : amp * 0.05,
+          chromatic:       spike ? amp * 5 : amp * 0.5,
+          jitter:          spike ? amp * 0.8 : amp * 0.02,
+          rgbShift:        spike ? amp * 3 + rand * 2 : 0,
+          distortion:      spike ? amp * 2 : 0,
+          screenTear:      spike ? rand : 0,
+          noise:           spike ? amp * 0.15 : amp * 0.01,
+          glitchSpeed:     1 + amp * 4,
+        };
+        const sliderRev = {glitchIntensity:['cGlitch',100], chromatic:['cChromatic',10], jitter:['cJitter',100], rgbShift:['cRGBShift',10], distortion:['cDistortion',10], noise:['cNoise',100]};
+        Object.entries(vals).forEach(([k,v]) => {
+          CRT.setParam(k, v);
+          const sr = sliderRev[k];
+          if(sr) {
+            const el = g(sr[0]);
+            if(el) { el.value = Math.round(v * sr[1]); const vEl = g('vC'+sr[0].slice(1)); if(vEl) vEl.textContent = el.value; }
+          }
+        });
       }
       CRT.render(oc, oc.width, oc.height);
     } else if(currentTab==='scrub') {
