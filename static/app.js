@@ -960,14 +960,17 @@ function startLoop(){
       // Amplitude-driven glitch — also updates sliders
       if(crtAmpGlitch) {
         const ampRaw = envelopeAmp / 255;
-        const ampI = gv('cAmpIntensity') / 100;
+        // Exponential curve: slider 0-200 → multiplier 0.01-4.0
+        // Low end = fine control, high end = dramatic
+        const ampI = Math.pow(gv('cAmpIntensity') / 100, 2.0);
         const amp = Math.min(ampRaw * ampI, 1.0);
         const rand = Math.random();
         // Spike hold: sustain glitch, retrigger continuously while loud
         if(!window._ampSpikeHold) window._ampSpikeHold = 0;
         if(!window._ampSpikeRand) window._ampSpikeRand = Math.random();
         if(!window._ampSpikeAmt) window._ampSpikeAmt = 0;
-        if(amp > 0.5 && (rand < amp * 0.5 || window._ampSpikeHold <= 2)) {
+        const ampThresh = Math.max(0.1, 0.6 - ampI * 0.3); // lower threshold at higher intensity
+        if(amp > ampThresh && (rand < amp * 0.5 || window._ampSpikeHold <= 2)) {
           window._ampSpikeHold = 8 + Math.floor(Math.random() * 18);
           window._ampSpikeRand = Math.random();
           window._ampSpikeAmt = amp;
@@ -1028,7 +1031,7 @@ function startLoop(){
       // Circuit bend — amplitude drives data corruption effects
       if(crtCircuitBend) {
         const ampRaw = envelopeAmp / 255;
-        const bendI = gv('cBendIntensity') / 100;
+        const bendI = Math.pow(gv('cBendIntensity') / 100, 2.0);
         const amp = Math.min(ampRaw * bendI, 1.0);
         const rand = Math.random();
         const phase = beatPhase;
@@ -1036,7 +1039,8 @@ function startLoop(){
         if(!window._cbSpikeHold) window._cbSpikeHold = 0;
         if(!window._cbSpikeRand) window._cbSpikeRand = Math.random();
         if(!window._cbSpikeAmt) window._cbSpikeAmt = 0;
-        if(amp > 0.5 && (rand < amp * 0.5 || window._cbSpikeHold <= 2)) {
+        const cbThresh = Math.max(0.1, 0.6 - bendI * 0.3);
+        if(amp > cbThresh && (rand < amp * 0.5 || window._cbSpikeHold <= 2)) {
           window._cbSpikeHold = 10 + Math.floor(Math.random() * 20);
           window._cbSpikeRand = Math.random();
           window._cbSpikeAmt = amp;
