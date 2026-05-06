@@ -66,6 +66,12 @@ function switchTab(tab) {
     g('tab-'+t).classList.toggle('active', t===tab);
     g('ws-'+t).style.display = t===tab ? 'grid' : 'none';
   });
+  // Reset CRT state when leaving scrub
+  if (tab!=='scrub') {
+    vid.style.visibility='visible'; vid.style.opacity='1';
+    g('crtCanvas').style.display='none';
+    window._ampSpikeHold=0; window._cbSpikeHold=0;
+  }
   if (tab==='depth') drawDepthFrame();
   if (tab==='layers') lyDrawPreview();
 }
@@ -733,7 +739,14 @@ function startBake(){
   function bakeDraw(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
     bakeAnimFrame=requestAnimationFrame(bakeDraw);
-    bctx.drawImage(vid,0,0,bc.width,bc.height);
+    // Capture CRT output if active, otherwise raw video
+    if(CRT.isEnabled() && window._crtOC) {
+      window._crtOCtx.drawImage(vid,0,0,window._crtOC.width,window._crtOC.height);
+      try { CRT.render(window._crtOC, window._crtOC.width, window._crtOC.height); } catch(e){}
+      bctx.drawImage(g('crtCanvas'),0,0,bc.width,bc.height);
+    } else {
+      bctx.drawImage(vid,0,0,bc.width,bc.height);
+    }
     if(audioBuffer){const el=(Date.now()-bakeStartTime)/1000;g('bakeProgress').style.width=Math.min(100,(el/audioBuffer.duration)*100)+'%';g('recInd').textContent='⬤ REC '+fmtT(el);if(el>=audioBuffer.duration)stopBake();}
   }
   bakeDraw();
