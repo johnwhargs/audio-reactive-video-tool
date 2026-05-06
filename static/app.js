@@ -969,17 +969,18 @@ function startLoop(){
         if(!window._ampSpikeHold) window._ampSpikeHold = 0;
         if(!window._ampSpikeRand) window._ampSpikeRand = Math.random();
         if(!window._ampSpikeAmt) window._ampSpikeAmt = 0;
-        if(!window._ampCooldown) window._ampCooldown = 0;
+        if(!window._ampCooldownUntil) window._ampCooldownUntil = 0;
         const ampThresh = Math.max(0.1, 0.6 - ampI * 0.3);
-        // Probability of triggering scales with intensity: 25%=rare, 100%=frequent, 200%=constant
         const triggerChance = Math.min(ampI * 0.3, 0.9);
-        if(window._ampCooldown > 0) { window._ampCooldown--; }
+        const now = performance.now();
+        // Cooldown in seconds: 25%=2-4s, 50%=1-2s, 100%=0.3-0.8s, 200%=0s
+        const cooldownMs = Math.max(0, (1.0 - ampI) * 3000 + Math.random() * 1500);
+        if(now < window._ampCooldownUntil) { /* cooling down */ }
         else if(amp > ampThresh && rand < triggerChance && window._ampSpikeHold <= 0) {
           window._ampSpikeHold = 8 + Math.floor(Math.random() * 18);
           window._ampSpikeRand = Math.random();
           window._ampSpikeAmt = amp;
-          // Cooldown between spikes: longer at low intensity, shorter at high
-          window._ampCooldown = Math.max(0, Math.floor((1.0 - ampI) * 40 + Math.random() * 20));
+          window._ampCooldownUntil = now + cooldownMs;
         }
         if(window._ampSpikeHold > 0) window._ampSpikeHold--;
         // Smooth decay: spike strength fades over hold duration
@@ -1045,15 +1046,17 @@ function startLoop(){
         if(!window._cbSpikeHold) window._cbSpikeHold = 0;
         if(!window._cbSpikeRand) window._cbSpikeRand = Math.random();
         if(!window._cbSpikeAmt) window._cbSpikeAmt = 0;
-        if(!window._cbCooldown) window._cbCooldown = 0;
+        if(!window._cbCooldownUntil) window._cbCooldownUntil = 0;
         const cbThresh = Math.max(0.1, 0.6 - bendI * 0.3);
         const cbTriggerChance = Math.min(bendI * 0.3, 0.9);
-        if(window._cbCooldown > 0) { window._cbCooldown--; }
+        const cbNow = performance.now();
+        const cbCooldownMs = Math.max(0, (1.0 - bendI) * 3000 + Math.random() * 1500);
+        if(cbNow < window._cbCooldownUntil) { /* cooling down */ }
         else if(amp > cbThresh && rand < cbTriggerChance && window._cbSpikeHold <= 0) {
           window._cbSpikeHold = 10 + Math.floor(Math.random() * 20);
           window._cbSpikeRand = Math.random();
           window._cbSpikeAmt = amp;
-          window._cbCooldown = Math.max(0, Math.floor((1.0 - bendI) * 40 + Math.random() * 20));
+          window._cbCooldownUntil = cbNow + cbCooldownMs;
         }
         if(window._cbSpikeHold > 0) window._cbSpikeHold--;
         const cbFade = window._cbSpikeHold > 0 ? Math.min(1, window._cbSpikeHold / 8) : 0;
@@ -1913,7 +1916,7 @@ g('cAmpGlitch').addEventListener('click', function() {
   crtAmpGlitch = !crtAmpGlitch;
   this.textContent = crtAmpGlitch ? 'amp glitch: on' : 'amp glitch: off';
   this.classList.toggle('active', crtAmpGlitch);
-  if (!crtAmpGlitch) ampGlitchParams.forEach(k => CRT.setParam(k, CRT.DEFAULTS[k]));
+  if (!crtAmpGlitch) CRT.restorePresetParams(ampGlitchParams);
   syncCRTSliders();
 });
 
@@ -1924,7 +1927,7 @@ g('cCircuitBend').addEventListener('click', function() {
   crtCircuitBend = !crtCircuitBend;
   this.textContent = crtCircuitBend ? 'circuit bend: on' : 'circuit bend: off';
   this.classList.toggle('active', crtCircuitBend);
-  if (!crtCircuitBend) circuitBendParams.forEach(k => CRT.setParam(k, CRT.DEFAULTS[k]));
+  if (!crtCircuitBend) CRT.restorePresetParams(circuitBendParams);
   syncCRTSliders();
 });
 

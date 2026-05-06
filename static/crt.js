@@ -916,6 +916,13 @@ function getParam(key) { return params[key]; }
 function getPresetNames() { return Object.keys(PRESETS); }
 function isEnabled() { return enabled; }
 function setEnabled(v) { enabled = v; }
+function getPresetValue(key) {
+  const p = PRESETS[preset] || {};
+  return key in p ? p[key] : DEFAULTS[key];
+}
+function restorePresetParams(keys) {
+  keys.forEach(k => { params[k] = getPresetValue(k); });
+}
 
-return { init, render, setPreset, setParam, getParam, getPresetNames, isEnabled, setEnabled, DEFAULTS, PRESETS };
+return { init, render, setPreset, setParam, getParam, getPresetNames, isEnabled, setEnabled, getPresetValue, restorePresetParams, DEFAULTS, PRESETS };
 })();
