@@ -55,6 +55,14 @@ const DEFAULTS = {
   linesSkip: 0.0,       // dropped scanlines 0-1
   shockwave: 0.0,       // radial ripple 0-1
   staticBurst: 0.0,     // full-screen static bursts 0-1
+  ruttEtra: 0.0,        // luma displaces Y (video synth) 0-1
+  zoomBlur: 0.0,        // radial zoom blur 0-1
+  lumaDisplace: 0.0,    // brightness warps X 0-1
+  noiseDisplace: 0.0,   // organic pixel warp 0-1
+  vCollapse: 0.0,       // vertical deflection collapse 0-1
+  sCurve: 0.0,          // capacitor ripple distort 0-1
+  emi: 0.0,             // electromagnetic interference 0-1
+  humBar: 0.0,          // AC mains hum bars 0-1
 };
 
 const PRESETS = {
@@ -179,6 +187,14 @@ uniform float uChannelSwap;
 uniform float uLinesSkip;
 uniform float uShockwave;
 uniform float uStaticBurst;
+uniform float uRuttEtra;
+uniform float uZoomBlur;
+uniform float uLumaDisplace;
+uniform float uNoiseDisplace;
+uniform float uVCollapse;
+uniform float uSCurve;
+uniform float uEmi;
+uniform float uHumBar;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -393,6 +409,46 @@ void main() {
     if (abs(uv.y - tearY2) < 0.002) uv.x -= uScreenTear * 0.02;
   }
 
+  // ── S-Curve distortion (capacitor failure) ──
+  if (uSCurve > 0.0) {
+    float drift = t * 0.15;
+    float ripple = sin(uv.y * 6.28318 * 2.0 + drift * 6.28318) * 0.5
+                 + sin(uv.y * 6.28318 * 4.0 + drift * 6.28318 * 1.3) * 0.25;
+    uv.x += ripple * uSCurve * 0.02;
+  }
+
+  // ── V-Collapse (vertical deflection failing) ──
+  if (uVCollapse > 0.0) {
+    float collapse = uVCollapse * uVCollapse;
+    uv.y = 0.5 + (uv.y - 0.5) * (1.0 - collapse * 0.95);
+  }
+
+  // ── Rutt-Etra (luma displaces Y) ──
+  if (uRuttEtra > 0.0) {
+    float reLuma = dot(texture2D(uTexture, uv).rgb, vec3(0.299, 0.587, 0.114));
+    uv.y -= reLuma * uRuttEtra * 0.15;
+  }
+
+  // ── Zoom blur ──
+  if (uZoomBlur > 0.0) {
+    vec2 zbC = uv - 0.5;
+    float zbD = length(zbC);
+    uv = 0.5 + zbC * (1.0 + zbD * uZoomBlur * 0.5);
+  }
+
+  // ── Luma displace (brightness warps X) ──
+  if (uLumaDisplace > 0.0) {
+    float ldLuma = dot(texture2D(uTexture, uv).rgb, vec3(0.299, 0.587, 0.114));
+    uv.x += (ldLuma - 0.5) * uLumaDisplace * 0.06;
+  }
+
+  // ── Noise displace (organic warp) ──
+  if (uNoiseDisplace > 0.0) {
+    float nd1 = snoise(uv * 8.0 + vec2(t * 0.3, 0.0));
+    float nd2 = snoise(uv * 8.0 + vec2(0.0, t * 0.37));
+    uv += (vec2(nd1, nd2) - 0.5) * uNoiseDisplace * 0.03;
+  }
+
   // ── Pixelate ──
   if (uPixelate > 0.0) {
     float blocks = mix(256.0, 16.0, uPixelate);
@@ -563,6 +619,33 @@ void main() {
   if (uNoise > 0.0) {
     float n = hash2(uv * res + vec2(t * 1000.0)) - 0.5;
     col += vec3(n) * uNoise;
+  }
+
+  // ── EMI (electromagnetic interference herringbone) ──
+  if (uEmi > 0.0) {
+    float scanPx = vUv.y * 480.0;
+    float herring1 = sin(scanPx * 0.8 + vUv.x * res.x * 0.3 + t * 120.0) * 0.5;
+    float herring2 = sin(scanPx * 1.2 - vUv.x * res.x * 0.2 + t * 97.0) * 0.3;
+    float emival = herring1 + herring2;
+    col += vec3(emival * uEmi * 0.08);
+    float burst = smoothstep(0.95, 1.0, sin(t * 0.3)) * 3.0;
+    col += vec3(emival * uEmi * 0.05 * burst);
+  }
+
+  // ── Hum bar (AC mains) ──
+  if (uHumBar > 0.0) {
+    float humPhase = vUv.y * 6.28318 + t * 6.28318 * 0.5;
+    float hum = sin(humPhase) * 0.5 + 0.5;
+    hum = hum * hum;
+    col *= 1.0 - uHumBar * 0.15 * (1.0 - hum);
+  }
+
+  // ── V-Collapse glow ──
+  if (uVCollapse > 0.0) {
+    float yDist = abs(vUv.y - 0.5);
+    float collapseFade = 1.0 - uVCollapse * uVCollapse * 0.95;
+    float lineGlow = exp(-yDist * yDist / max(0.01, collapseFade * 0.5));
+    col *= 1.0 + uVCollapse * lineGlow * 2.0;
   }
 
   // ── Flicker ──

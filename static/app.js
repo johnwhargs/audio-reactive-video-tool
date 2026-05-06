@@ -1735,6 +1735,14 @@ const crtSliderMap = {
   cFeedback:    ['feedback', 100],
   cStaticBurst: ['staticBurst', 100],
   cShockwave:   ['shockwave', 100],
+  cRuttEtra:    ['ruttEtra', 100],
+  cZoomBlur:    ['zoomBlur', 100],
+  cLumaDisplace:['lumaDisplace', 100],
+  cNoiseDisplace:['noiseDisplace', 100],
+  cVCollapse:   ['vCollapse', 100],
+  cSCurve:      ['sCurve', 100],
+  cEmi:         ['emi', 100],
+  cHumBar:      ['humBar', 100],
 };
 
 function syncCRTSliders() {
@@ -1770,18 +1778,24 @@ Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
 
 // Amplitude-driven random glitch
 let crtAmpGlitch = false;
+const ampGlitchParams = ['glitchIntensity','chromatic','jitter','rgbShift','distortion','screenTear','noise','glitchSpeed'];
 g('cAmpGlitch').addEventListener('click', function() {
   crtAmpGlitch = !crtAmpGlitch;
   this.textContent = crtAmpGlitch ? 'amp glitch: on' : 'amp glitch: off';
   this.classList.toggle('active', crtAmpGlitch);
+  if (!crtAmpGlitch) ampGlitchParams.forEach(k => CRT.setParam(k, CRT.DEFAULTS[k]));
+  syncCRTSliders();
 });
 
 // Circuit bend — amplitude drives circuit bending effects
 let crtCircuitBend = false;
+const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst'];
 g('cCircuitBend').addEventListener('click', function() {
   crtCircuitBend = !crtCircuitBend;
   this.textContent = crtCircuitBend ? 'circuit bend: on' : 'circuit bend: off';
   this.classList.toggle('active', crtCircuitBend);
+  if (!crtCircuitBend) circuitBendParams.forEach(k => CRT.setParam(k, CRT.DEFAULTS[k]));
+  syncCRTSliders();
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
