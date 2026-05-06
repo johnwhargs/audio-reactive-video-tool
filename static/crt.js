@@ -45,6 +45,16 @@ const DEFAULTS = {
   vortex: 0.0,          // spiral distort 0-1
   waveDistort: 0.0,     // sine wave horizontal 0-1
   mirror: 0.0,          // kaleidoscope 0-8
+  pixelStretch: 0.0,    // horizontal stretch bands 0-1
+  colorDrift: 0.0,      // RGB phase drift 0-1
+  clockSkew: 0.0,       // per-line horizontal stretch 0-1
+  bitCrush: 0.0,        // bit depth reduction 0-1
+  lineCorrupt: 0.0,     // per-line corruption 0-1
+  feedback: 0.0,        // zoom feedback echo 0-1
+  channelSwap: 0.0,     // RGB channel permutation 0-5
+  linesSkip: 0.0,       // dropped scanlines 0-1
+  shockwave: 0.0,       // radial ripple 0-1
+  staticBurst: 0.0,     // full-screen static bursts 0-1
 };
 
 const PRESETS = {
@@ -89,6 +99,18 @@ const PRESETS = {
     scanlines:0.1, chromatic:4, rgbShift:3, solarize:0.5, vortex:0.3,
     waveDistort:0.4, bloom:0.5, saturation:1.5, flicker:0.02, noise:0.02,
     glitchIntensity:0.3, glitchSpeed:3
+  },
+  circuitBend: {
+    scanlines:0.2, chromatic:2.5, bloom:0.3, noise:0.04,
+    clockSkew:0.5, dataBend:0.6, bitCrush:0.3, lineCorrupt:0.4,
+    channelSwap:2, colorDrift:0.5, pixelStretch:0.4, linesSkip:0.2,
+    glitchIntensity:0.3, glitchSpeed:2, jitter:0.3, rgbShift:1.5,
+    staticBurst:0.3, feedback:0.3
+  },
+  dataCorrupt: {
+    dataBend:0.8, clockSkew:0.7, lineCorrupt:0.6, pixelStretch:0.6,
+    bitCrush:0.5, noise:0.06, glitchIntensity:0.5, glitchSpeed:3,
+    chromatic:2, linesSkip:0.3, staticBurst:0.4
   }
 };
 
@@ -147,6 +169,16 @@ uniform float uPixelate;
 uniform float uVortex;
 uniform float uWaveDistort;
 uniform float uMirror;
+uniform float uPixelStretch;
+uniform float uColorDrift;
+uniform float uClockSkew;
+uniform float uBitCrush;
+uniform float uLineCorrupt;
+uniform float uFeedback;
+uniform float uChannelSwap;
+uniform float uLinesSkip;
+uniform float uShockwave;
+uniform float uStaticBurst;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -367,6 +399,50 @@ void main() {
     uv = floor(uv * blocks) / blocks;
   }
 
+  // ── Pixel stretch ──
+  if (uPixelStretch > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    float band = snoise(vec2(lineY * 5.0, t * 0.5));
+    if (band > 0.7) {
+      float stretchAmt = (band - 0.7) * uPixelStretch * 3.0;
+      uv.x = mix(uv.x, 0.5, stretchAmt * 0.3);
+    }
+  }
+
+  // ── Clock skew ──
+  if (uClockSkew > 0.0) {
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    float skew = sin(lineY * 50.0 + t * 3.0) * uClockSkew * 0.05;
+    uv.x = 0.5 + (uv.x - 0.5) * (1.0 + skew);
+  }
+
+  // ── Shockwave ──
+  if (uShockwave > 0.0) {
+    vec2 c = uv - 0.5;
+    float r = length(c);
+    float wave = sin(r * 30.0 - t * 8.0) * uShockwave * 0.02;
+    float lineY = floor(uv.y * scanCount) / scanCount;
+    uv += normalize(c + 0.001) * wave * smoothstep(0.5, 0.0, r);
+  }
+
+  // ── Line corrupt ──
+  if (uLineCorrupt > 0.0) {
+    float lineY = floor(uv.y * scanCount);
+    float corrupt = hash1(lineY * 73.0 + floor(t * 15.0));
+    if (corrupt > 1.0 - uLineCorrupt * 0.15) {
+      uv.x += (hash1(lineY * 31.0 + t * 100.0) - 0.5) * 0.2;
+    }
+  }
+
+  // ── Lines skip ──
+  if (uLinesSkip > 0.0) {
+    float lineY = floor(uv.y * scanCount);
+    float skip = hash1(lineY * 41.0 + floor(t * 8.0));
+    if (skip > 1.0 - uLinesSkip * 0.1) {
+      uv.y += 1.0 / scanCount;
+    }
+  }
+
   // ── Out of bounds check ──
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
     gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -400,6 +476,42 @@ void main() {
     bleed += texture2D(uTexture, uv - vec2(px*3.0, 0.0)).rgb;
     bleed += texture2D(uTexture, uv - vec2(px*4.0, 0.0)).rgb;
     col = mix(col, bleed / 4.0, uColorBleed * 0.3);
+  }
+
+  // ── Color drift (RGB phase separation over time) ──
+  if (uColorDrift > 0.0) {
+    float drift = uColorDrift * 0.003;
+    col.r = texture2D(uTexture, uv + vec2(sin(t * 1.1) * drift, cos(t * 0.7) * drift)).r;
+    col.b = texture2D(uTexture, uv + vec2(cos(t * 1.3) * drift, sin(t * 0.9) * drift)).b;
+  }
+
+  // ── Channel swap ──
+  if (uChannelSwap > 0.5 && uChannelSwap < 1.5) col = col.rbg;
+  else if (uChannelSwap >= 1.5 && uChannelSwap < 2.5) col = col.grb;
+  else if (uChannelSwap >= 2.5 && uChannelSwap < 3.5) col = col.gbr;
+  else if (uChannelSwap >= 3.5 && uChannelSwap < 4.5) col = col.brg;
+  else if (uChannelSwap >= 4.5) col = col.bgr;
+
+  // ── Bit crush ──
+  if (uBitCrush > 0.0) {
+    float levels = max(2.0, floor(256.0 * (1.0 - uBitCrush)));
+    col = floor(col * levels) / levels;
+  }
+
+  // ── Static burst ──
+  if (uStaticBurst > 0.0) {
+    float burst = step(0.95 - uStaticBurst * 0.2, hash1(floor(t * 4.0) * 7.7));
+    if (burst > 0.5) {
+      float st = hash2(uv * res + vec2(t * 5000.0));
+      col = mix(col, vec3(st), uStaticBurst * 0.8);
+    }
+  }
+
+  // ── Feedback (zoom echo) ──
+  if (uFeedback > 0.0) {
+    vec2 fbUv = (uv - 0.5) * (1.0 - uFeedback * 0.05) + 0.5;
+    vec3 fb = texture2D(uTexture, fbUv).rgb;
+    col = mix(col, max(col, fb * 0.9), uFeedback * 0.4);
   }
 
   // ── Solarize ──

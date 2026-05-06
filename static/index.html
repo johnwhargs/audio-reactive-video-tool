@@ -193,6 +193,8 @@
             <option value="busted">Busted</option>
             <option value="dreamy">Dreamy</option>
             <option value="acidTrip">Acid Trip</option>
+            <option value="circuitBend">Circuit Bend</option>
+            <option value="dataCorrupt">Data Corrupt</option>
           </select>
         </div>
         <div id="crtControls" style="display:none;">
@@ -209,7 +211,19 @@
           <div class="sr"><span class="sl">roll</span><input type="range" min="0" max="100" value="0" step="1" id="cRoll"><span class="sv" id="vCRoll">0</span></div>
           <div class="sr"><span class="sl">color bleed</span><input type="range" min="0" max="100" value="0" step="1" id="cColorBleed"><span class="sv" id="vCColorBleed">0</span></div>
           <div class="sr"><span class="sl">saturation</span><input type="range" min="0" max="200" value="100" step="1" id="cSaturation"><span class="sv" id="vCSaturation">100</span></div>
-          <div class="sr"><span class="sl">amp glitch</span><button class="btn" id="cAmpGlitch" style="width:40px;padding:2px 6px;">off</button></div>
+          <div class="sr"><span class="sl">clock skew</span><input type="range" min="0" max="100" value="0" step="1" id="cClockSkew"><span class="sv" id="vCClockSkew">0</span></div>
+          <div class="sr"><span class="sl">data bend</span><input type="range" min="0" max="100" value="0" step="1" id="cDataBend"><span class="sv" id="vCDataBend">0</span></div>
+          <div class="sr"><span class="sl">bit crush</span><input type="range" min="0" max="100" value="0" step="1" id="cBitCrush"><span class="sv" id="vCBitCrush">0</span></div>
+          <div class="sr"><span class="sl">line corrupt</span><input type="range" min="0" max="100" value="0" step="1" id="cLineCorrupt"><span class="sv" id="vCLineCorrupt">0</span></div>
+          <div class="sr"><span class="sl">pixel stretch</span><input type="range" min="0" max="100" value="0" step="1" id="cPixelStretch"><span class="sv" id="vCPixelStretch">0</span></div>
+          <div class="sr"><span class="sl">color drift</span><input type="range" min="0" max="100" value="0" step="1" id="cColorDrift"><span class="sv" id="vCColorDrift">0</span></div>
+          <div class="sr"><span class="sl">feedback</span><input type="range" min="0" max="100" value="0" step="1" id="cFeedback"><span class="sv" id="vCFeedback">0</span></div>
+          <div class="sr"><span class="sl">static burst</span><input type="range" min="0" max="100" value="0" step="1" id="cStaticBurst"><span class="sv" id="vCStaticBurst">0</span></div>
+          <div class="sr"><span class="sl">shockwave</span><input type="range" min="0" max="100" value="0" step="1" id="cShockwave"><span class="sv" id="vCShockwave">0</span></div>
+          <div class="btn-row" style="margin-top:5px;">
+            <button class="btn" id="cAmpGlitch" style="flex:1;">amp glitch: off</button>
+            <button class="btn" id="cCircuitBend" style="flex:1;">circuit bend: off</button>
+          </div>
         </div>
       </div>
 
