@@ -949,59 +949,64 @@ function startLoop(){
       if(crtAmpGlitch) {
         const amp = envelopeAmp / 255;
         const rand = Math.random();
-        // Spike hold: once triggered, sustain for 10-25 frames
+        // Spike hold: sustain glitch, retrigger continuously while loud
         if(!window._ampSpikeHold) window._ampSpikeHold = 0;
         if(!window._ampSpikeRand) window._ampSpikeRand = Math.random();
-        if(amp > 0.7 && rand < amp * 0.3 && window._ampSpikeHold <= 0) {
-          window._ampSpikeHold = 10 + Math.floor(Math.random() * 15);
+        if(!window._ampSpikeAmt) window._ampSpikeAmt = 0;
+        if(amp > 0.5 && (rand < amp * 0.5 || window._ampSpikeHold <= 2)) {
+          window._ampSpikeHold = 8 + Math.floor(Math.random() * 18);
           window._ampSpikeRand = Math.random();
+          window._ampSpikeAmt = amp;
         }
         if(window._ampSpikeHold > 0) window._ampSpikeHold--;
-        const spike = window._ampSpikeHold > 0;
+        // Smooth decay: spike strength fades over hold duration
+        const holdFade = window._ampSpikeHold > 0 ? Math.min(1, window._ampSpikeHold / 8) : 0;
+        const spike = holdFade > 0;
         const sRand = window._ampSpikeRand;
+        const sAmp = window._ampSpikeAmt * holdFade;
         const vals = {
-          glitchIntensity: spike ? amp * 0.8 + sRand * 0.2 : amp * 0.05,
-          chromatic:       spike ? amp * 5 : amp * 0.5,
-          jitter:          spike ? amp * 0.8 : amp * 0.02,
-          rgbShift:        spike ? amp * 3 + sRand * 2 : 0,
-          distortion:      spike ? amp * 2 : 0,
-          distortion2:     spike ? amp * 1.5 : 0,
-          screenTear:      spike ? sRand : 0,
-          noise:           spike ? amp * 0.15 : amp * 0.01,
+          glitchIntensity: spike ? sAmp * 0.8 + sRand * 0.2 : amp * 0.05,
+          chromatic:       spike ? sAmp * 5 : amp * 0.5,
+          jitter:          spike ? sAmp * 0.8 : amp * 0.02,
+          rgbShift:        spike ? sAmp * 3 + sRand * 2 : 0,
+          distortion:      spike ? sAmp * 2 : 0,
+          distortion2:     spike ? sAmp * 1.5 : 0,
+          screenTear:      spike ? sRand * holdFade : 0,
+          noise:           spike ? sAmp * 0.15 : amp * 0.01,
           glitchSpeed:     1 + amp * 4,
-          colorBleed:      spike ? amp * 0.5 : amp * 0.05,
-          rollSpeed:       spike ? amp * 0.3 : 0,
+          colorBleed:      spike ? sAmp * 0.5 : amp * 0.05,
+          rollSpeed:       spike ? sAmp * 0.3 : 0,
           rollLine:        spike ? 0.4 : 0,
-          vSyncWobble:     spike ? amp * 0.5 : amp * 0.02,
-          hSyncLoss:       spike ? amp * 0.4 : 0,
-          dataBend:        spike ? amp * 0.5 : 0,
-          pixelate:        spike && sRand > 0.8 ? amp * 0.3 : 0,
-          pixelStretch:    spike ? amp * 0.5 : 0,
-          clockSkew:       spike ? amp * 0.6 : 0,
-          bitCrush:        spike ? amp * 0.4 : 0,
-          lineCorrupt:     spike ? amp * 0.4 : amp * 0.01,
+          vSyncWobble:     spike ? sAmp * 0.5 : amp * 0.02,
+          hSyncLoss:       spike ? sAmp * 0.4 : 0,
+          dataBend:        spike ? sAmp * 0.5 : 0,
+          pixelate:        spike && sRand > 0.8 ? sAmp * 0.3 : 0,
+          pixelStretch:    spike ? sAmp * 0.5 : 0,
+          clockSkew:       spike ? sAmp * 0.6 : 0,
+          bitCrush:        spike ? sAmp * 0.4 : 0,
+          lineCorrupt:     spike ? sAmp * 0.4 : amp * 0.01,
           colorDrift:      amp * 0.3,
           feedback:        amp * 0.3,
-          staticBurst:     spike ? sRand * 0.5 : 0,
+          staticBurst:     spike ? sRand * holdFade * 0.5 : 0,
           channelSwap:     spike && sRand > 0.7 ? Math.floor(sRand * 5) : 0,
-          linesSkip:       spike ? amp * 0.2 : 0,
-          shockwave:       spike ? amp * 0.3 : 0,
-          ghosting:        amp * 0.5 + (spike ? 0.3 : 0),
-          ruttEtra:        spike ? amp * 0.3 : 0,
-          vCollapse:       spike && sRand > 0.9 ? amp * 0.3 : 0,
-          sCurve:          spike ? amp * 0.3 : 0,
-          emi:             spike ? amp * 0.4 : amp * 0.02,
+          linesSkip:       spike ? sAmp * 0.2 : 0,
+          shockwave:       spike ? sAmp * 0.3 : 0,
+          ghosting:        amp * 0.5 + (spike ? holdFade * 0.3 : 0),
+          ruttEtra:        spike ? sAmp * 0.3 : 0,
+          vCollapse:       spike && sRand > 0.9 ? sAmp * 0.3 : 0,
+          sCurve:          spike ? sAmp * 0.3 : 0,
+          emi:             spike ? sAmp * 0.4 : amp * 0.02,
           humBar:          amp * 0.2,
-          zoomBlur:        spike ? amp * 0.3 : 0,
-          lumaDisplace:    spike ? amp * 0.4 : amp * 0.02,
-          noiseDisplace:   spike ? amp * 0.3 : 0,
-          solarize:        spike && sRand > 0.85 ? amp * 0.4 : 0,
-          posterize:       spike && sRand > 0.9 ? amp * 0.3 : 0,
-          invert:          spike && sRand > 0.95 ? 1.0 : 0,
-          vortex:          spike && sRand > 0.9 ? amp * 0.2 : 0,
-          waveDistort:     spike ? amp * 0.3 : 0,
+          zoomBlur:        spike ? sAmp * 0.3 : 0,
+          lumaDisplace:    spike ? sAmp * 0.4 : amp * 0.02,
+          noiseDisplace:   spike ? sAmp * 0.3 : 0,
+          solarize:        spike && sRand > 0.85 ? sAmp * 0.4 : 0,
+          posterize:       spike && sRand > 0.9 ? sAmp * 0.3 : 0,
+          invert:          spike && sRand > 0.95 ? holdFade : 0,
+          vortex:          spike && sRand > 0.9 ? sAmp * 0.2 : 0,
+          waveDistort:     spike ? sAmp * 0.3 : 0,
           mirror:          spike && sRand > 0.95 ? Math.floor(sRand * 6) + 2 : 0,
-          flicker:         spike ? amp * 0.06 : amp * 0.01,
+          flicker:         spike ? sAmp * 0.06 : amp * 0.01,
         };
         Object.entries(vals).forEach(([k,v]) => CRT.setParam(k, v));
         syncCRTSliders();
@@ -1011,36 +1016,40 @@ function startLoop(){
         const amp = envelopeAmp / 255;
         const rand = Math.random();
         const phase = beatPhase;
-        // Spike hold for circuit bend
+        // Spike hold for circuit bend — retrigger while loud
         if(!window._cbSpikeHold) window._cbSpikeHold = 0;
         if(!window._cbSpikeRand) window._cbSpikeRand = Math.random();
-        if(amp > 0.6 && rand < amp * 0.4 && window._cbSpikeHold <= 0) {
-          window._cbSpikeHold = 12 + Math.floor(Math.random() * 20);
+        if(!window._cbSpikeAmt) window._cbSpikeAmt = 0;
+        if(amp > 0.5 && (rand < amp * 0.5 || window._cbSpikeHold <= 2)) {
+          window._cbSpikeHold = 10 + Math.floor(Math.random() * 20);
           window._cbSpikeRand = Math.random();
+          window._cbSpikeAmt = amp;
         }
         if(window._cbSpikeHold > 0) window._cbSpikeHold--;
-        const hit = window._cbSpikeHold > 0;
+        const cbFade = window._cbSpikeHold > 0 ? Math.min(1, window._cbSpikeHold / 8) : 0;
+        const hit = cbFade > 0;
+        const cbAmp = window._cbSpikeAmt * cbFade;
         const cbVals = {
-          clockSkew:      hit ? amp * 0.8 : amp * 0.05,
-          dataBend:       hit ? amp * 0.7 + rand * 0.3 : amp * 0.03,
-          bitCrush:       hit ? amp * 0.6 : 0,
-          lineCorrupt:    hit ? amp * 0.5 : amp * 0.02,
-          pixelStretch:   hit ? amp * 0.7 : 0,
+          clockSkew:      hit ? cbAmp * 0.8 : amp * 0.05,
+          dataBend:       hit ? cbAmp * 0.7 + rand * 0.3 : amp * 0.03,
+          bitCrush:       hit ? cbAmp * 0.6 : 0,
+          lineCorrupt:    hit ? cbAmp * 0.5 : amp * 0.02,
+          pixelStretch:   hit ? cbAmp * 0.7 : 0,
           colorDrift:     amp * 0.6 + Math.sin(phase * 6.28) * 0.2,
           channelSwap:    hit ? Math.floor(rand * 5) : 0,
           feedback:       amp * 0.4,
-          linesSkip:      hit ? amp * 0.3 : 0,
-          shockwave:      hit ? amp * 0.5 : 0,
-          staticBurst:    hit ? rand * 0.6 : 0,
-          ruttEtra:       hit ? amp * 0.5 : amp * 0.05,
-          vCollapse:      hit ? amp * 0.3 : 0,
+          linesSkip:      hit ? cbAmp * 0.3 : 0,
+          shockwave:      hit ? cbAmp * 0.5 : 0,
+          staticBurst:    hit ? rand * cbFade * 0.6 : 0,
+          ruttEtra:       hit ? cbAmp * 0.5 : amp * 0.05,
+          vCollapse:      hit ? cbAmp * 0.3 : 0,
           sCurve:         amp * 0.4 + Math.sin(phase * 3.14) * 0.2,
-          emi:            hit ? amp * 0.6 : amp * 0.05,
+          emi:            hit ? cbAmp * 0.6 : amp * 0.05,
           humBar:         amp * 0.3,
-          zoomBlur:       hit ? amp * 0.4 : 0,
-          lumaDisplace:   hit ? amp * 0.5 : amp * 0.03,
-          noiseDisplace:  hit ? amp * 0.4 : 0,
-          ghosting:       amp * 0.6 + (hit ? 0.3 : 0),
+          zoomBlur:       hit ? cbAmp * 0.4 : 0,
+          lumaDisplace:   hit ? cbAmp * 0.5 : amp * 0.03,
+          noiseDisplace:  hit ? cbAmp * 0.4 : 0,
+          ghosting:       amp * 0.6 + (hit ? cbFade * 0.3 : 0),
         };
         Object.entries(cbVals).forEach(([k,v]) => {
           CRT.setParam(k, v);
