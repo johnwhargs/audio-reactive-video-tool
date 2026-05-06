@@ -674,7 +674,8 @@ void main() {
 
   // ── Frame ghosting ──
   if (uGhosting > 0.0) {
-    vec3 prev = texture2D(uPrevFrame, vUv).rgb;
+    vec2 prevUv = vec2(vUv.x, 1.0 - vUv.y);
+    vec3 prev = texture2D(uPrevFrame, prevUv).rgb;
     col = max(col, prev * uGhosting);
   }
 
