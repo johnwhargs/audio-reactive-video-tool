@@ -394,15 +394,17 @@ void main() {
   if (uColorBleed > 0.0) {
     float px = 1.0 / res.x;
     vec3 bleed = vec3(0.0);
-    for (float i = 1.0; i <= 4.0; i++) {
-      bleed += texture2D(uTexture, uv - vec2(px * i, 0.0)).rgb;
-    }
+    bleed += texture2D(uTexture, uv - vec2(px, 0.0)).rgb;
+    bleed += texture2D(uTexture, uv - vec2(px*2.0, 0.0)).rgb;
+    bleed += texture2D(uTexture, uv - vec2(px*3.0, 0.0)).rgb;
+    bleed += texture2D(uTexture, uv - vec2(px*4.0, 0.0)).rgb;
     col = mix(col, bleed / 4.0, uColorBleed * 0.3);
   }
 
   // ── Solarize ──
   if (uSolarize > 0.0) {
-    vec3 sol = mix(col, 1.0 - col, step(0.5, col));
+    vec3 s = step(vec3(0.5), col);
+    vec3 sol = col * (1.0 - s) + (1.0 - col) * s;
     col = mix(col, sol, uSolarize);
   }
 
@@ -429,15 +431,17 @@ void main() {
 
   // ── Bloom (simple glow approximation) ──
   if (uBloom > 0.0) {
-    vec3 bloomCol = vec3(0.0);
-    float px = 1.0/res.x, py = 1.0/res.y;
-    for (float x = -2.0; x <= 2.0; x++) {
-      for (float y = -2.0; y <= 2.0; y++) {
-        bloomCol += texture2D(uTexture, uv + vec2(x*px*3.0, y*py*3.0)).rgb;
-      }
-    }
-    bloomCol /= 25.0;
-    // Only add bright parts
+    float px = 3.0/res.x, py = 3.0/res.y;
+    vec3 bloomCol = texture2D(uTexture, uv).rgb
+      + texture2D(uTexture, uv + vec2(px, 0.0)).rgb
+      + texture2D(uTexture, uv - vec2(px, 0.0)).rgb
+      + texture2D(uTexture, uv + vec2(0.0, py)).rgb
+      + texture2D(uTexture, uv - vec2(0.0, py)).rgb
+      + texture2D(uTexture, uv + vec2(px, py)).rgb
+      + texture2D(uTexture, uv - vec2(px, py)).rgb
+      + texture2D(uTexture, uv + vec2(px, -py)).rgb
+      + texture2D(uTexture, uv - vec2(px, -py)).rgb;
+    bloomCol /= 9.0;
     vec3 bright = max(bloomCol - 0.5, 0.0) * 2.0;
     col += bright * uBloom;
   }
@@ -532,8 +536,15 @@ function compileShader(type, src) {
   const s = gl.createShader(type);
   gl.shaderSource(s, src); gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error('[crt] shader error:', gl.getShaderInfoLog(s)); return null;
+    const log = gl.getShaderInfoLog(s);
+    console.error('[crt] shader compile FAILED (' + (type === gl.VERTEX_SHADER ? 'vert' : 'frag') + '):', log);
+    // Show first error line
+    const lines = src.split('\n');
+    const match = log.match(/(\d+):(\d+)/);
+    if (match) console.error('[crt] near line ' + match[2] + ':', lines[parseInt(match[2])-1]);
+    return null;
   }
+  console.log('[crt] shader compiled OK (' + (type === gl.VERTEX_SHADER ? 'vert' : 'frag') + ')');
   return s;
 }
 
