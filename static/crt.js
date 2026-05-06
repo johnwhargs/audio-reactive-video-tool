@@ -8,6 +8,8 @@ var CRT = (() => {
 let gl, program, fb, fbTex, quadBuf, uniforms = {};
 let canvas, enabled = false, preset = 'off';
 let prevFrameTex = null, prevFBO = null, prevW = 0, prevH = 0;
+let cachedAPos = -1;
+let uniformParamMap = []; // [{key, uLoc}] pre-built at init
 let params = {};
 const DEFAULTS = {
   scanlines: 0.0,       // 0-1 scanline darkness
@@ -818,9 +820,20 @@ function init(targetCanvas) {
   // FBO for capturing current frame → prev
   prevFBO = gl.createFramebuffer();
 
+  // Cache attrib location
+  cachedAPos = gl.getAttribLocation(program, 'aPos');
+
+  // Pre-build param→uniform map (avoids Object.keys + string concat per frame)
+  uniformParamMap = [];
+  for (const key in DEFAULTS) {
+    const uName = 'u' + key.charAt(0).toUpperCase() + key.slice(1);
+    const loc = uniforms[uName];
+    if (loc !== undefined && loc !== null) uniformParamMap.push({ key, loc });
+  }
+
   // Set defaults
   params = { ...DEFAULTS };
-  console.log('[crt] init OK, program:', !!program, 'uniforms:', Object.keys(uniforms).length);
+  console.log('[crt] init OK, program:', !!program, 'uniforms:', uniformParamMap.length);
   return true;
 }
 
@@ -846,52 +859,36 @@ function render(source, width, height) {
   if (!gl || !enabled || !program) return;
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width; canvas.height = height;
-    // Rebind state after resize
-    gl.useProgram(program);
-    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-    const aPos = gl.getAttribLocation(program, 'aPos');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
   }
+
+  gl.useProgram(program);
   gl.viewport(0, 0, width, height);
 
-  // Upload source texture
-  gl.useProgram(program);
+  // Upload source texture (params already set at init)
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, fbTex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source); }
-  catch(e) { console.warn('[crt] texImage2D failed:', e.message); return; }
-  gl.uniform1i(uniforms.uTexture, 0);
+  catch(e) { return; }
 
-  // Set uniforms
+  // Set uniforms from pre-built map (no Object.keys, no string concat)
   gl.uniform2f(uniforms.uResolution, width, height);
   gl.uniform1f(uniforms.uTime, performance.now() / 1000.0);
+  for (let i = 0; i < uniformParamMap.length; i++) {
+    const m = uniformParamMap[i];
+    gl.uniform1f(m.loc, params[m.key]);
+  }
 
-  Object.keys(DEFAULTS).forEach(key => {
-    const uName = 'u' + key.charAt(0).toUpperCase() + key.slice(1);
-    if (uniforms[uName] !== undefined && uniforms[uName] !== null) {
-      gl.uniform1f(uniforms[uName], params[key] !== undefined ? params[key] : DEFAULTS[key]);
-    }
-  });
-
-  // Bind previous frame texture
+  // Bind previous frame
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, prevFrameTex);
-  gl.uniform1i(gl.getUniformLocation(program, 'uPrevFrame'), 1);
 
-  // Ensure quad bound
+  // Draw quad (cached attrib)
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  const aP = gl.getAttribLocation(program, 'aPos');
-  gl.enableVertexAttribArray(aP);
-  gl.vertexAttribPointer(aP, 2, gl.FLOAT, false, 0, 0);
-
+  gl.enableVertexAttribArray(cachedAPos);
+  gl.vertexAttribPointer(cachedAPos, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-  // Copy current output to prevFrameTex for next frame ghosting
+  // Copy output for ghosting
   if (params.ghosting > 0) {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, prevFrameTex);

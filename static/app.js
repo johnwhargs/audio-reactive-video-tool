@@ -832,8 +832,10 @@ function startLoop(){
   if(animFrame)return;
   const data=new Uint8Array(analyser.frequencyBinCount);
 
+  let _loopFrame = 0;
   function loop(){
     animFrame=requestAnimationFrame(loop);
+    _loopFrame++;
     analyser.getByteFrequencyData(data);
     detectBeat(data); updateBeatPhase();
 
@@ -1032,8 +1034,8 @@ function startLoop(){
           mirror:          spike && sRand > 0.95 ? Math.floor(sRand * 6) + 2 : 0,
           flicker:         spike ? sAmp * 0.06 : amp * 0.01,
         };
-        Object.entries(vals).forEach(([k,v]) => CRT.setParam(k, v));
-        syncCRTSliders();
+        for (const k in vals) CRT.setParam(k, vals[k]);
+        if (_loopFrame % 6 === 0) syncCRTSliders();
       }
       // Circuit bend — amplitude drives data corruption effects
       if(crtCircuitBend) {
@@ -1084,10 +1086,8 @@ function startLoop(){
           noiseDisplace:  hit ? cbAmp * 0.4 : 0,
           ghosting:       amp * 0.6 + (hit ? cbFade * 0.3 : 0),
         };
-        Object.entries(cbVals).forEach(([k,v]) => {
-          CRT.setParam(k, v);
-        });
-        syncCRTSliders();
+        for (const k in cbVals) CRT.setParam(k, cbVals[k]);
+        if (_loopFrame % 6 === 0) syncCRTSliders();
       }
       try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
     } else if(currentTab==='scrub') {
