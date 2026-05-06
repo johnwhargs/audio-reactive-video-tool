@@ -969,11 +969,17 @@ function startLoop(){
         if(!window._ampSpikeHold) window._ampSpikeHold = 0;
         if(!window._ampSpikeRand) window._ampSpikeRand = Math.random();
         if(!window._ampSpikeAmt) window._ampSpikeAmt = 0;
-        const ampThresh = Math.max(0.1, 0.6 - ampI * 0.3); // lower threshold at higher intensity
-        if(amp > ampThresh && (rand < amp * 0.5 || window._ampSpikeHold <= 2)) {
+        if(!window._ampCooldown) window._ampCooldown = 0;
+        const ampThresh = Math.max(0.1, 0.6 - ampI * 0.3);
+        // Probability of triggering scales with intensity: 25%=rare, 100%=frequent, 200%=constant
+        const triggerChance = Math.min(ampI * 0.3, 0.9);
+        if(window._ampCooldown > 0) { window._ampCooldown--; }
+        else if(amp > ampThresh && rand < triggerChance && window._ampSpikeHold <= 0) {
           window._ampSpikeHold = 8 + Math.floor(Math.random() * 18);
           window._ampSpikeRand = Math.random();
           window._ampSpikeAmt = amp;
+          // Cooldown between spikes: longer at low intensity, shorter at high
+          window._ampCooldown = Math.max(0, Math.floor((1.0 - ampI) * 40 + Math.random() * 20));
         }
         if(window._ampSpikeHold > 0) window._ampSpikeHold--;
         // Smooth decay: spike strength fades over hold duration
@@ -1039,11 +1045,15 @@ function startLoop(){
         if(!window._cbSpikeHold) window._cbSpikeHold = 0;
         if(!window._cbSpikeRand) window._cbSpikeRand = Math.random();
         if(!window._cbSpikeAmt) window._cbSpikeAmt = 0;
+        if(!window._cbCooldown) window._cbCooldown = 0;
         const cbThresh = Math.max(0.1, 0.6 - bendI * 0.3);
-        if(amp > cbThresh && (rand < amp * 0.5 || window._cbSpikeHold <= 2)) {
+        const cbTriggerChance = Math.min(bendI * 0.3, 0.9);
+        if(window._cbCooldown > 0) { window._cbCooldown--; }
+        else if(amp > cbThresh && rand < cbTriggerChance && window._cbSpikeHold <= 0) {
           window._cbSpikeHold = 10 + Math.floor(Math.random() * 20);
           window._cbSpikeRand = Math.random();
           window._cbSpikeAmt = amp;
+          window._cbCooldown = Math.max(0, Math.floor((1.0 - bendI) * 40 + Math.random() * 20));
         }
         if(window._cbSpikeHold > 0) window._cbSpikeHold--;
         const cbFade = window._cbSpikeHold > 0 ? Math.min(1, window._cbSpikeHold / 8) : 0;
