@@ -923,7 +923,7 @@ function startLoop(){
     }
 
     // CRT post-process on scrub video
-    if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=2 && vid.videoWidth) {
+    if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=1 && vid.videoWidth) {
       const crtC = g('crtCanvas');
       // Match canvas position to video element
       const vr = vid.getBoundingClientRect();
