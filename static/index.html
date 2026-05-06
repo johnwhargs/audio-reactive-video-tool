@@ -196,6 +196,11 @@
             <option value="acidTrip">Acid Trip</option>
             <option value="circuitBend">Circuit Bend</option>
             <option value="dataCorrupt">Data Corrupt</option>
+            <option value="wornTape">Worn Tape</option>
+            <option value="surveillance">Surveillance</option>
+            <option value="lofi">Lo-Fi</option>
+            <option value="neonEdges">Neon Edges</option>
+            <option value="deathGrips">Death Grips</option>
           </select>
         </div>
         <div id="crtControls" style="display:none;">
@@ -262,7 +267,11 @@
           </div>
           <div class="sr"><span class="sl">amp intensity</span><input type="range" min="1" max="200" value="100" step="1" id="cAmpIntensity"><span class="sv" id="vCAmpIntensity">100%</span></div>
           <div class="sr"><span class="sl">bend intensity</span><input type="range" min="1" max="200" value="100" step="1" id="cBendIntensity"><span class="sv" id="vCBendIntensity">100%</span></div>
-          <button class="btn" id="cAutoIntensity" style="width:100%;margin-top:4px;">auto intensity: off</button>
+          <div class="btn-row" style="margin-top:4px;">
+            <button class="btn active" id="cIntNone" data-intmode="none">none</button>
+            <button class="btn" id="cIntPeak" data-intmode="peak">peak</button>
+            <button class="btn" id="cIntAuto" data-intmode="auto">auto</button>
+          </div>
         </div>
       </div>
 

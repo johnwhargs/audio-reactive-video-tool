@@ -102,49 +102,81 @@ const PRESETS = {
   arcade: {
     scanlines:0.5, curvature:15, bloom:0.4, chromatic:1.5, vignette:0.55,
     brightness:1.15, saturation:1.35, maskType:1, maskScale:0.9, noise:0.025,
-    convergence:0.08, persistence:0.18, flicker:0.015
+    convergence:0.08, persistence:0.18, flicker:0.015, ringing:0.2,
+    cornerPurity:0.1, edgeGlow:0.05
   },
   broadcast: {
     scanlines:0.35, curvature:5, bloom:0.25, chromatic:0.8, vignette:0.3,
     brightness:1.05, saturation:1.0, maskType:0, maskScale:0.7, noise:0.01,
-    flicker:0.005, persistence:0.1
+    flicker:0.005, persistence:0.1, interlace:0.4, ringing:0.1
   },
   glitch: {
     scanlines:0.15, curvature:3, bloom:0.35, chromatic:3, vignette:0.2,
     glitchIntensity:0.7, glitchSpeed:1.5, rgbShift:2, jitter:0.6, noise:0.03,
-    persistence:0.08
+    persistence:0.08, staticBurst:0.2, screenTear:0.3
   },
   cctv: {
     scanlines:0.4, curvature:8, bloom:0.15, chromatic:0.5, vignette:0.6,
     brightness:0.9, saturation:0.3, maskType:2, noise:0.08, jitter:0.1,
-    flicker:0.03
+    flicker:0.03, interlace:0.5, edgeGlow:0.15, cornerPurity:0.15
   },
   busted: {
     scanlines:0.3, curvature:12, bloom:0.5, chromatic:4, vignette:0.5,
     distortion:2.5, distortion2:1.5, jitter:0.8, noise:0.1, rollSpeed:0.3,
     rollLine:0.5, vSyncWobble:0.6, hSyncLoss:0.3, glitchIntensity:0.4,
-    glitchSpeed:2, colorBleed:0.4, flicker:0.08, screenTear:0.5
+    glitchSpeed:2, colorBleed:0.4, flicker:0.08, screenTear:0.5,
+    headClog:0.3, chromaLoss:0.2, tapeWow:0.4
   },
   dreamy: {
     scanlines:0.1, curvature:2, bloom:0.7, chromatic:1.5, vignette:0.3,
-    brightness:1.1, saturation:1.2, persistence:0.5, flicker:0.01, noise:0.01
+    brightness:1.1, saturation:1.2, persistence:0.5, flicker:0.01, noise:0.01,
+    ghosting:0.3, colorDrift:0.2
   },
   acidTrip: {
     scanlines:0.1, chromatic:4, rgbShift:3, solarize:0.5, vortex:0.3,
     waveDistort:0.4, bloom:0.5, saturation:1.5, flicker:0.02, noise:0.02,
-    glitchIntensity:0.3, glitchSpeed:3
+    glitchIntensity:0.3, glitchSpeed:3, scanRainbow:0.6, feedback:0.3
   },
   circuitBend: {
     scanlines:0.2, chromatic:2.5, bloom:0.3, noise:0.04,
     clockSkew:0.5, dataBend:0.6, bitCrush:0.3, lineCorrupt:0.4,
     channelSwap:2, colorDrift:0.5, pixelStretch:0.4, linesSkip:0.2,
     glitchIntensity:0.3, glitchSpeed:2, jitter:0.3, rgbShift:1.5,
-    staticBurst:0.3, feedback:0.3
+    staticBurst:0.3, feedback:0.3, bayerDither:0.2
   },
   dataCorrupt: {
     dataBend:0.8, clockSkew:0.7, lineCorrupt:0.6, pixelStretch:0.6,
     bitCrush:0.5, noise:0.06, glitchIntensity:0.5, glitchSpeed:3,
     chromatic:2, linesSkip:0.3, staticBurst:0.4
+  },
+  wornTape: {
+    scanlines:0.25, curvature:8, bloom:0.3, chromatic:1.5, vignette:0.4,
+    brightness:0.9, saturation:0.7, noise:0.08, distortion:1.0,
+    distortion2:0.5, colorBleed:0.3, tapeWow:0.5, tapeFlutter:0.4,
+    headClog:0.2, colorFade:0.5, chromaLoss:0.2, jitter:0.15,
+    ringing:0.1, interlace:0.3, ghosting:0.2
+  },
+  surveillance: {
+    scanlines:0.5, curvature:5, bloom:0.1, vignette:0.7,
+    brightness:0.85, saturation:0.0, maskType:2, noise:0.1,
+    jitter:0.05, flicker:0.04, interlace:0.6, edgeGlow:0.2,
+    cornerPurity:0.2, gateWeave:0.1, bayerDither:0.15
+  },
+  lofi: {
+    scanlines:0.3, curvature:6, bloom:0.5, chromatic:1.0, vignette:0.35,
+    brightness:1.0, saturation:0.85, noise:0.05, colorBleed:0.2,
+    tapeWow:0.2, colorFade:0.2, ringing:0.15, interlace:0.2,
+    ghosting:0.15, distortion:0.5
+  },
+  neonEdges: {
+    bloom:0.6, chromatic:3, edgeGlow:0.8, saturation:1.5,
+    scanRainbow:0.3, vignette:0.3, noise:0.02, scanlines:0.15
+  },
+  deathGrips: {
+    scanlines:0.2, chromatic:3, rgbShift:2, noise:0.08,
+    glitchIntensity:0.5, glitchSpeed:2, jitter:0.5, distortion:1.5,
+    staticBurst:0.4, dataBend:0.4, bitCrush:0.2, vSyncWobble:0.3,
+    screenTear:0.4, headClog:0.2, feedback:0.2, ghosting:0.2
   }
 };
 

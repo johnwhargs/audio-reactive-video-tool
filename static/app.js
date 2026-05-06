@@ -2006,36 +2006,50 @@ Object.entries(chromaSliders).forEach(([id,[param,div]]) => {
 g('cAmpIntensity').addEventListener('input', function(){ g('vCAmpIntensity').textContent = this.value + '%'; });
 g('cBendIntensity').addEventListener('input', function(){ g('vCBendIntensity').textContent = this.value + '%'; });
 
-// Auto intensity — random walk on both intensity sliders
-let autoIntensity = false;
+// Intensity mode: none / peak / auto
+let intensityMode = 'none';
 let _aiAmpTarget = 100, _aiBendTarget = 100;
 let _aiAmpCurrent = 100, _aiBendCurrent = 100;
 let _aiNextChange = 0;
 
-g('cAutoIntensity').addEventListener('click', function() {
-  autoIntensity = !autoIntensity;
-  this.textContent = autoIntensity ? 'auto intensity: on' : 'auto intensity: off';
-  this.classList.toggle('active', autoIntensity);
+document.querySelectorAll('[data-intmode]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    intensityMode = this.dataset.intmode;
+    document.querySelectorAll('[data-intmode]').forEach(b => b.classList.toggle('active', b.dataset.intmode === intensityMode));
+  });
 });
 
 function updateAutoIntensity() {
-  if (!autoIntensity) return;
+  if (intensityMode === 'none') return;
   const now = performance.now();
-  // Pick new random targets every 3-8 seconds
-  if (now > _aiNextChange) {
-    _aiAmpTarget = 20 + Math.floor(Math.random() * 180);
-    _aiBendTarget = 20 + Math.floor(Math.random() * 180);
-    _aiNextChange = now + 3000 + Math.random() * 5000;
+
+  if (intensityMode === 'peak') {
+    // Peak mode: amplitude directly drives intensity (loud = more intense)
+    const amp = envelopeAmp / 255;
+    const ampVal = Math.round(30 + amp * 170); // 30-200%
+    const bendVal = Math.round(30 + amp * 170);
+    g('cAmpIntensity').value = ampVal;
+    g('vCAmpIntensity').textContent = ampVal + '%';
+    g('cBendIntensity').value = bendVal;
+    g('vCBendIntensity').textContent = bendVal + '%';
   }
-  // Smooth drift toward targets
-  _aiAmpCurrent += (_aiAmpTarget - _aiAmpCurrent) * 0.02;
-  _aiBendCurrent += (_aiBendTarget - _aiBendCurrent) * 0.02;
-  const ampVal = Math.round(_aiAmpCurrent);
-  const bendVal = Math.round(_aiBendCurrent);
-  g('cAmpIntensity').value = ampVal;
-  g('vCAmpIntensity').textContent = ampVal + '%';
-  g('cBendIntensity').value = bendVal;
-  g('vCBendIntensity').textContent = bendVal + '%';
+
+  if (intensityMode === 'auto') {
+    // Auto mode: random drift targets every 3-8 seconds
+    if (now > _aiNextChange) {
+      _aiAmpTarget = 20 + Math.floor(Math.random() * 180);
+      _aiBendTarget = 20 + Math.floor(Math.random() * 180);
+      _aiNextChange = now + 3000 + Math.random() * 5000;
+    }
+    _aiAmpCurrent += (_aiAmpTarget - _aiAmpCurrent) * 0.02;
+    _aiBendCurrent += (_aiBendTarget - _aiBendCurrent) * 0.02;
+    const ampVal = Math.round(_aiAmpCurrent);
+    const bendVal = Math.round(_aiBendCurrent);
+    g('cAmpIntensity').value = ampVal;
+    g('vCAmpIntensity').textContent = ampVal + '%';
+    g('cBendIntensity').value = bendVal;
+    g('vCBendIntensity').textContent = bendVal + '%';
+  }
 }
 
 // Amplitude-driven random glitch
