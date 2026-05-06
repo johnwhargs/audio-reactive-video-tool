@@ -677,7 +677,7 @@ void main() {
     vec2 prevUv = vec2(vUv.x, 1.0 - vUv.y);
     // Rare random Y-flip on ghost frame (~3% chance every 2s)
     float flipTrigger = hash1(floor(t * 0.5) * 3.7);
-    if (flipTrigger > 0.97) prevUv.y = 1.0 - prevUv.y;
+    if (flipTrigger > 0.75) prevUv.y = 1.0 - prevUv.y;
     vec3 prev = texture2D(uPrevFrame, prevUv).rgb;
     col = max(col, prev * uGhosting);
   }
