@@ -357,6 +357,12 @@ void main() {
     uv.x += sin(lineY * 30.0 + t * 5.0) * uWaveDistort * 0.02;
   }
 
+  // ── Random Y-flip (rare glitch) ──
+  if (uGlitchIntensity > 0.0) {
+    float flipTrigger = hash1(floor(t * 0.5) * 3.7);
+    if (flipTrigger > 0.97) uv.y = 1.0 - uv.y;
+  }
+
   // ── Barrel warp ──
   uv = Warp(uv);
 
