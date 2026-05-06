@@ -221,20 +221,86 @@ function setupAnalyser() {
   gainNode=audioCtx.createGain(); gainNode.gain.value=1.0;
   gainNode.connect(analyser); analyser.connect(audioCtx.destination);
 }
+// Audio pool
+let audioPool = []; // [{name, buffer}]
+let activeAudioIdx = -1;
+
 function loadAudio(input) {
-  const f=input.files[0]; if(!f) return;
-  g('audioStatus').textContent=f.name;
+  const files = Array.from(input.files);
+  if(!files.length) return;
   if(!audioCtx) audioCtx=new AudioContext();
   if(!analyser) setupAnalyser();
-  const reader=new FileReader();
-  reader.onload=e=>audioCtx.decodeAudioData(e.target.result,buf=>{
-    audioBuffer=buf; tlAudioDuration=buf.duration;
-    g('playBtn').classList.remove('disabled');
-    buildWaveform(buf); startLoop();
-    g('dAudioStatus').textContent=f.name;
-    g('dPlayBtn').classList.remove('disabled');
+  let loaded = 0;
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = e => audioCtx.decodeAudioData(e.target.result, buf => {
+      audioPool.push({ name: f.name.replace(/\.[^.]+$/,''), buffer: buf });
+      loaded++;
+      if(loaded === files.length) {
+        renderAudioList();
+        if(activeAudioIdx === -1) activateAudio(0);
+      }
+    }, () => { loaded++; }); // skip failed decodes
+    reader.readAsArrayBuffer(f);
   });
-  reader.readAsArrayBuffer(f); input.value='';
+  input.value='';
+}
+
+function activateAudio(idx) {
+  if(idx < 0 || idx >= audioPool.length) return;
+  // Stop current playback
+  if(playing) { if(source){try{source.stop();}catch(e){} source=null;} playing=false; }
+  activeAudioIdx = idx;
+  const item = audioPool[idx];
+  audioBuffer = item.buffer;
+  tlAudioDuration = item.buffer.duration;
+  g('audioStatus').textContent = item.name;
+  g('dAudioStatus').textContent = item.name;
+  g('playBtn').classList.remove('disabled');
+  g('dPlayBtn').classList.remove('disabled');
+  buildWaveform(item.buffer);
+  renderAudioList();
+  startLoop();
+}
+
+function removeAudio(idx) {
+  audioPool.splice(idx, 1);
+  if(activeAudioIdx === idx) {
+    activeAudioIdx = audioPool.length ? 0 : -1;
+    if(activeAudioIdx >= 0) activateAudio(0);
+    else { audioBuffer = null; g('audioStatus').textContent='no audio'; }
+  } else if(activeAudioIdx > idx) activeAudioIdx--;
+  renderAudioList();
+}
+
+function playNextAudio() {
+  if(audioPool.length <= 1) return;
+  const next = (activeAudioIdx + 1) % audioPool.length;
+  activateAudio(next);
+  // Auto-play
+  if(!playing) togglePlay();
+}
+
+function renderAudioList() {
+  const list = g('audioList');
+  if(!list) return;
+  if(!audioPool.length) { list.innerHTML = ''; return; }
+  list.innerHTML = audioPool.map((a, i) => `
+    <div class="clip-item ${i===activeAudioIdx?'active':''}" data-aidx="${i}">
+      <span class="clip-name">${a.name}</span>
+      <span class="clip-status">${fmtT(a.buffer.duration)}</span>
+      <span class="clip-remove" data-aremove="${i}">&times;</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.clip-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if(e.target.dataset.aremove !== undefined) return;
+      activateAudio(parseInt(el.dataset.aidx));
+    });
+  });
+  list.querySelectorAll('.clip-remove').forEach(el => {
+    el.addEventListener('click', () => removeAudio(parseInt(el.dataset.aremove)));
+  });
 }
 
 // Depth tab audio loader - same engine
@@ -263,7 +329,15 @@ function togglePlay() {
   } else {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
     source=audioCtx.createBufferSource(); source.buffer=audioBuffer; source.connect(gainNode);
-    source.loop=true; source._startTime=audioCtx.currentTime; source.start();
+    source._startTime=audioCtx.currentTime;
+    // Auto-advance to next track when finished (if pool > 1), else loop
+    if(audioPool.length > 1) {
+      source.loop=false;
+      source.onended=()=>{ if(playing) playNextAudio(); };
+    } else {
+      source.loop=true;
+    }
+    source.start();
     playing=true; btn.textContent='stop'; btn.classList.add('active'); startLoop();
   }
 }
