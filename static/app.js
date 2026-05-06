@@ -723,7 +723,7 @@ function tlSetupEvents(){
 function startBake(){
   if(!vid.duration){alert('Load a video first');return;}
   if(!analyser){alert('Load audio first');return;}
-  const bc=document.createElement('canvas'); bc.width=vid.videoWidth||1920; bc.height=vid.videoHeight||1080;
+  const bc=document.createElement('canvas'); bc.width=1920; bc.height=1080;
   const bctx=bc.getContext('2d');
   const cs=bc.captureStream(30);
   if(!audioCtx){alert('No audio context');return;}
@@ -741,9 +741,9 @@ function startBake(){
     bakeAnimFrame=requestAnimationFrame(bakeDraw);
     // Capture CRT output if active, otherwise raw video
     if(CRT.isEnabled() && window._crtOC) {
-      window._crtOCtx.drawImage(vid,0,0,window._crtOC.width,window._crtOC.height);
-      try { CRT.render(window._crtOC, window._crtOC.width, window._crtOC.height); } catch(e){}
-      bctx.drawImage(g('crtCanvas'),0,0,bc.width,bc.height);
+      window._crtOCtx.drawImage(vid,0,0,1920,1080);
+      try { CRT.render(window._crtOC, 1920, 1080); } catch(e){}
+      bctx.drawImage(g('crtCanvas'),0,0,1920,1080);
     } else {
       bctx.drawImage(vid,0,0,bc.width,bc.height);
     }
@@ -954,10 +954,11 @@ function startLoop(){
         window._crtOCtx = window._crtOC.getContext('2d');
       }
       const oc = window._crtOC;
-      if(oc.width !== vid.videoWidth || oc.height !== vid.videoHeight) {
-        oc.width = vid.videoWidth; oc.height = vid.videoHeight;
+      const CRT_W = 1920, CRT_H = 1080;
+      if(oc.width !== CRT_W || oc.height !== CRT_H) {
+        oc.width = CRT_W; oc.height = CRT_H;
       }
-      window._crtOCtx.drawImage(vid, 0, 0, oc.width, oc.height);
+      window._crtOCtx.drawImage(vid, 0, 0, CRT_W, CRT_H);
       // Amplitude-driven glitch — also updates sliders
       if(crtAmpGlitch) {
         const ampRaw = envelopeAmp / 255;
@@ -1073,7 +1074,7 @@ function startLoop(){
         });
         syncCRTSliders();
       }
-      try { CRT.render(oc, oc.width, oc.height); } catch(e) { console.warn('[crt] render error:', e); }
+      try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
     } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
       vid.style.opacity = '1';
