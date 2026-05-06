@@ -569,19 +569,19 @@ void main() {
     col = mix(col, bleed / 4.0, uColorBleed * 0.3);
   }
 
-  // ── Chromakey (Guillotine mode) ──
+  // ── Chromakey (Guillotine mode) — green channel dominance ──
   if (uChromaKey > 0.0) {
-    vec3 keyColor = vec3(0.0, 1.0, 0.0); // green screen
-    float chromaDist = distance(RGBtoUV(col), RGBtoUV(keyColor));
-    float baseMask = chromaDist - uChromaSimilarity;
-    float mask = pow(clamp(baseMask / max(uChromaSmoothness, 0.001), 0.0, 1.0), 1.5);
-    // Spill removal — desaturate near key color
-    float spillMask = pow(clamp(baseMask / max(uChromaSpill, 0.001), 0.0, 1.0), 1.5);
+    // How much green exceeds red+blue (green dominance)
+    float greenness = col.g - max(col.r, col.b);
+    float baseMask = greenness - uChromaSimilarity;
+    float mask = 1.0 - pow(clamp(baseMask / max(uChromaSmoothness, 0.001), 0.0, 1.0), 1.5);
+    // Spill removal — desaturate green-dominant areas
+    float spillMask = 1.0 - pow(clamp(baseMask / max(uChromaSpill, 0.001), 0.0, 1.0), 1.5);
     float desat = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = mix(vec3(desat), col, spillMask);
     // Replace keyed areas with animated noise
     vec3 bg = noiseBackground(vUv, t * uChromaNoiseSpeed, uChromaNoiseScale);
-    col = mix(bg, col, mix(1.0, mask, uChromaKey));
+    col = mix(col, bg, (1.0 - mask) * uChromaKey);
   }
 
   // ── Color drift (RGB phase separation over time) ──
