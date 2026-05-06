@@ -572,7 +572,7 @@ function render(source, width, height) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source); }
-  catch(e) { return; }
+  catch(e) { console.warn('[crt] texImage2D failed:', e.message); return; }
   gl.uniform1i(uniforms.uTexture, 0);
 
   // Set uniforms

@@ -925,6 +925,9 @@ function startLoop(){
     // CRT post-process on scrub video
     if(currentTab==='scrub' && CRT.isEnabled() && vid.videoWidth) {
       const crtC = g('crtCanvas');
+      // Measure video position BEFORE hiding (visibility:hidden collapses rect)
+      vid.style.visibility = 'visible';
+      vid.style.opacity = '0';
       const vr = vid.getBoundingClientRect();
       const pr = vid.parentElement.getBoundingClientRect();
       crtC.style.left = (vr.left - pr.left) + 'px';
@@ -932,20 +935,20 @@ function startLoop(){
       crtC.style.width = vr.width + 'px';
       crtC.style.height = vr.height + 'px';
       crtC.style.display = 'block';
-      vid.style.visibility = 'hidden';
-      // Draw video to offscreen canvas first (works at any readyState)
-      if(!window._crtOffscreen) {
-        window._crtOffscreen = document.createElement('canvas');
-        window._crtOffCtx = window._crtOffscreen.getContext('2d');
+      // Draw video to offscreen 2D canvas (always works, even during seek)
+      if(!window._crtOC) {
+        window._crtOC = document.createElement('canvas');
+        window._crtOCtx = window._crtOC.getContext('2d');
       }
-      const oc = window._crtOffscreen;
+      const oc = window._crtOC;
       if(oc.width !== vid.videoWidth || oc.height !== vid.videoHeight) {
         oc.width = vid.videoWidth; oc.height = vid.videoHeight;
       }
-      window._crtOffCtx.drawImage(vid, 0, 0, oc.width, oc.height);
+      window._crtOCtx.drawImage(vid, 0, 0, oc.width, oc.height);
       CRT.render(oc, oc.width, oc.height);
-    } else if(currentTab==='scrub' && !CRT.isEnabled()) {
+    } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
+      vid.style.opacity = '1';
       g('crtCanvas').style.display = 'none';
     }
 
