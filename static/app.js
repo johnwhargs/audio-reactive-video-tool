@@ -938,15 +938,13 @@ function startLoop(){
     // CRT post-process on scrub video
     if(currentTab==='scrub' && CRT.isEnabled() && vid.videoWidth) {
       const crtC = g('crtCanvas');
-      // Measure video position BEFORE hiding (visibility:hidden collapses rect)
       vid.style.visibility = 'visible';
       vid.style.opacity = '0';
-      const vr = vid.getBoundingClientRect();
-      const pr = vid.parentElement.getBoundingClientRect();
-      crtC.style.left = (vr.left - pr.left) + 'px';
-      crtC.style.top = (vr.top - pr.top) + 'px';
-      crtC.style.width = vr.width + 'px';
-      crtC.style.height = vr.height + 'px';
+      // Fill entire view area
+      crtC.style.left = '0';
+      crtC.style.top = '0';
+      crtC.style.width = '100%';
+      crtC.style.height = '100%';
       crtC.style.display = 'block';
       // Draw video to offscreen 2D canvas (always works, even during seek)
       if(!window._crtOC) {
