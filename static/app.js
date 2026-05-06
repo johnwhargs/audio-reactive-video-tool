@@ -1811,14 +1811,35 @@ async function pollNowPlaying() {
 }
 
 let _ltTimer = null;
+let _ltMode = 'none'; // none, slide, on, greek
+let _ltLastTrack = null;
+
+// Latin → Greek transliteration map
+const _greekMap = {A:'Α',B:'Β',C:'Ψ',D:'Δ',E:'Ε',F:'Φ',G:'Γ',H:'Η',I:'Ι',J:'Ξ',K:'Κ',L:'Λ',M:'Μ',N:'Ν',O:'Ο',P:'Π',Q:'Θ',R:'Ρ',S:'Σ',T:'Τ',U:'Υ',V:'Β',W:'Ω',X:'Χ',Y:'Ψ',Z:'Ζ',
+  a:'α',b:'β',c:'ψ',d:'δ',e:'ε',f:'φ',g:'γ',h:'η',i:'ι',j:'ξ',k:'κ',l:'λ',m:'μ',n:'ν',o:'ο',p:'π',q:'θ',r:'ρ',s:'σ',t:'τ',u:'υ',v:'β',w:'ω',x:'χ',y:'ψ',z:'ζ'};
+function toGreek(str) { return str.split('').map(c => _greekMap[c] || c).join(''); }
+
+document.querySelectorAll('[data-ltmode]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    _ltMode = this.dataset.ltmode;
+    document.querySelectorAll('[data-ltmode]').forEach(b => b.classList.toggle('active', b.dataset.ltmode === _ltMode));
+    if (_ltMode === 'none') { g('lowerThird').style.display = 'none'; if(_ltTimer) clearTimeout(_ltTimer); }
+    if ((_ltMode === 'on' || _ltMode === 'greek') && _ltLastTrack) showLowerThird(_ltLastTrack);
+  });
+});
+
 function showLowerThird(track) {
-  if (!track) return;
+  if (!track || _ltMode === 'none') return;
+  _ltLastTrack = track;
   const lt = g('lowerThird');
   const art = g('ltArt');
   const song = g('ltSong');
   const artist = g('ltArtist');
-  song.textContent = track.name || '';
-  artist.textContent = track.artists ? track.artists.map(a => a.name).join(', ') : '';
+  const useGreek = _ltMode === 'greek';
+  const songText = track.name || '';
+  const artistText = track.artists ? track.artists.map(a => a.name).join(', ') : '';
+  song.textContent = useGreek ? toGreek(songText) : songText;
+  artist.textContent = useGreek ? toGreek(artistText) : artistText;
   if (track.album && track.album.images && track.album.images.length) {
     art.src = (track.album.images[1] || track.album.images[0]).url;
     art.style.display = 'block';
@@ -1826,10 +1847,13 @@ function showLowerThird(track) {
   lt.classList.remove('lt-out');
   lt.style.display = 'flex';
   if (_ltTimer) clearTimeout(_ltTimer);
-  _ltTimer = setTimeout(() => {
-    lt.classList.add('lt-out');
-    setTimeout(() => { lt.style.display = 'none'; }, 600);
-  }, 8000);
+  if (_ltMode === 'slide') {
+    _ltTimer = setTimeout(() => {
+      lt.classList.add('lt-out');
+      setTimeout(() => { lt.style.display = 'none'; }, 600);
+    }, 8000);
+  }
+  // 'on' and 'greek' stay visible permanently
 }
 
 function onTrackChange(track, features) {
