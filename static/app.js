@@ -252,8 +252,7 @@ function togglePlay() {
   [vid, dBgVid, dOvVid, dDpVid].forEach(v => { v.muted = true; v.volume = 0; });
   if(playing){
     if(source){try{source.stop();}catch(e){} source=null;}
-    if(songSource){try{songSource.stop();}catch(e){} songSource=null;}
-    playing=false; songPlaying=false;
+    playing=false;
     btn.textContent='play'; btn.classList.remove('active');
   } else {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
@@ -267,7 +266,7 @@ async function toggleMic() {
   if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;btn.classList.remove('active');btn.textContent='mic';return;}
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
     audioCtx.createMediaStreamSource(micStream).connect(gainNode);
     btn.classList.add('active'); btn.textContent='mic on'; g('audioStatus').textContent='microphone active'; startLoop();
   } catch(e){g('audioStatus').textContent='mic denied';}
@@ -867,7 +866,7 @@ function startLoop(){
 
     // Scrub video
     if(vid.readyState>=2&&vid.duration&&videoUnlocked){
-      const rs=vid.duration*gv('sVidStart')/100,re=vid.duration*gv('sVidEnd')/100,range=re-rs;
+      const rs=vid.duration*gv('sVidStart')/100,re=vid.duration*gv('sVidEnd')/100,range=Math.max(re-rs,0.01);
       const audioPos=rs+tAlive*range,beatPos=btInitialized?rs+beatPhase*range:audioPos;
       const blended=audioPos*(1-beatSync)+beatPos*beatSync;
       const lfoSec=Math.sin(lfoPhase)*(lfoDepth/10)*range*(aliveLevel/10);
@@ -886,11 +885,11 @@ function startLoop(){
       }
       else if(currentMode==='pingpong'){ nextTime=vid.currentTime+(tAlive-0.5)*0.4+minDrift*bounceDir; }
       else if(currentMode==='freeze'){ if(tAlive>0.3||aliveLevel>0) nextTime=vid.currentTime+0.033*(tAlive>0.3?1:0.3)*bounceDir+minDrift*bounceDir; }
-      if(currentMode==='pingpong'){
-        // Loop: wrap around instead of bouncing
-        if(nextTime>=re) nextTime=rs+(nextTime-re);
-        if(nextTime<=rs) nextTime=re-(rs-nextTime);
-      } else {
+      if(currentMode==='pingpong' && range>0.01){
+        // Loop: modulo wrap
+        if(nextTime>=re) nextTime=rs+((nextTime-rs)%(range));
+        else if(nextTime<rs) nextTime=re-((rs-nextTime)%(range));
+      } else if(currentMode!=='pingpong') {
         if(nextTime>=re){bounceDir=-1;stuckNudgeDir=-1;nextTime=re-0.01;}else if(nextTime<=rs){bounceDir=1;stuckNudgeDir=1;nextTime=rs+0.01;}
       }
 
@@ -996,7 +995,7 @@ function startLoop(){
         });
         syncCRTSliders();
       }
-      CRT.render(oc, oc.width, oc.height);
+      try { CRT.render(oc, oc.width, oc.height); } catch(e) { console.warn('[crt] render error:', e); }
     } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
       vid.style.opacity = '1';
@@ -1534,7 +1533,15 @@ function isSpotifyConnected() {
   return spotifyToken && Date.now() < spotifyExpires;
 }
 
+let _refreshLock = null;
 async function refreshSpotifyToken() {
+  if (_refreshLock) return _refreshLock;
+  _refreshLock = _doRefreshToken();
+  const result = await _refreshLock;
+  _refreshLock = null;
+  return result;
+}
+async function _doRefreshToken() {
   const refresh = localStorage.getItem('spotify_refresh');
   if (!refresh) return false;
   try {
@@ -1693,6 +1700,15 @@ function startSpotifyPoller() {
   pollNowPlaying();
   spotifyPoller = setInterval(pollNowPlaying, 3000);
 }
+
+// Pause Spotify polling when tab backgrounded
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && spotifyPoller) {
+    clearInterval(spotifyPoller); spotifyPoller = null;
+  } else if (!document.hidden && isSpotifyConnected() && !spotifyPoller) {
+    startSpotifyPoller();
+  }
+});
 
 // Spotify UI binding
 g('spConnectBtn').addEventListener('click', () => {
