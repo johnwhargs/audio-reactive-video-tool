@@ -1033,6 +1033,8 @@ function startLoop(){
         oc.width = CRT_W; oc.height = CRT_H;
       }
       window._crtOCtx.drawImage(vid, 0, 0, CRT_W, CRT_H);
+      // Auto-randomize intensity
+      updateAutoIntensity();
       // Amplitude-driven glitch — also updates sliders
       if(crtAmpGlitch) {
         const ampRaw = envelopeAmp / 255;
@@ -1982,6 +1984,38 @@ Object.entries(chromaSliders).forEach(([id,[param,div]]) => {
 // Intensity sliders
 g('cAmpIntensity').addEventListener('input', function(){ g('vCAmpIntensity').textContent = this.value + '%'; });
 g('cBendIntensity').addEventListener('input', function(){ g('vCBendIntensity').textContent = this.value + '%'; });
+
+// Auto intensity — random walk on both intensity sliders
+let autoIntensity = false;
+let _aiAmpTarget = 100, _aiBendTarget = 100;
+let _aiAmpCurrent = 100, _aiBendCurrent = 100;
+let _aiNextChange = 0;
+
+g('cAutoIntensity').addEventListener('click', function() {
+  autoIntensity = !autoIntensity;
+  this.textContent = autoIntensity ? 'auto intensity: on' : 'auto intensity: off';
+  this.classList.toggle('active', autoIntensity);
+});
+
+function updateAutoIntensity() {
+  if (!autoIntensity) return;
+  const now = performance.now();
+  // Pick new random targets every 3-8 seconds
+  if (now > _aiNextChange) {
+    _aiAmpTarget = 20 + Math.floor(Math.random() * 180);
+    _aiBendTarget = 20 + Math.floor(Math.random() * 180);
+    _aiNextChange = now + 3000 + Math.random() * 5000;
+  }
+  // Smooth drift toward targets
+  _aiAmpCurrent += (_aiAmpTarget - _aiAmpCurrent) * 0.02;
+  _aiBendCurrent += (_aiBendTarget - _aiBendCurrent) * 0.02;
+  const ampVal = Math.round(_aiAmpCurrent);
+  const bendVal = Math.round(_aiBendCurrent);
+  g('cAmpIntensity').value = ampVal;
+  g('vCAmpIntensity').textContent = ampVal + '%';
+  g('cBendIntensity').value = bendVal;
+  g('vCBendIntensity').textContent = bendVal + '%';
+}
 
 // Amplitude-driven random glitch
 let crtAmpGlitch = false;
