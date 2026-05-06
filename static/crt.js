@@ -524,7 +524,7 @@ function init(targetCanvas) {
 
   // Set defaults
   params = { ...DEFAULTS };
-  console.log('[crt] init OK');
+  console.log('[crt] init OK, program:', !!program, 'uniforms:', Object.keys(uniforms).length);
   return true;
 }
 
@@ -540,20 +540,31 @@ function compileShader(type, src) {
 // ─── Render ─────────────────────────────────────────────────────────────────
 
 function render(source, width, height) {
-  if (!gl || !enabled) return;
+  if (!gl || !enabled || !program) return;
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width; canvas.height = height;
+    // Rebind state after resize
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    const aPos = gl.getAttribLocation(program, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
   }
   gl.viewport(0, 0, width, height);
 
   // Upload source texture
+  gl.useProgram(program);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, fbTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source); }
   catch(e) { return; }
+  gl.uniform1i(uniforms.uTexture, 0);
 
   // Set uniforms
-  gl.useProgram(program);
   gl.uniform2f(uniforms.uResolution, width, height);
   gl.uniform1f(uniforms.uTime, performance.now() / 1000.0);
 
@@ -563,6 +574,12 @@ function render(source, width, height) {
       gl.uniform1f(uniforms[uName], params[key] !== undefined ? params[key] : DEFAULTS[key]);
     }
   });
+
+  // Ensure quad bound
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  const aP = gl.getAttribLocation(program, 'aPos');
+  gl.enableVertexAttribArray(aP);
+  gl.vertexAttribPointer(aP, 2, gl.FLOAT, false, 0, 0);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
