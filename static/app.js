@@ -960,15 +960,8 @@ function startLoop(){
           noise:           spike ? amp * 0.15 : amp * 0.01,
           glitchSpeed:     1 + amp * 4,
         };
-        const sliderRev = {glitchIntensity:['cGlitch',100], chromatic:['cChromatic',10], jitter:['cJitter',100], rgbShift:['cRGBShift',10], distortion:['cDistortion',10], noise:['cNoise',100]};
-        Object.entries(vals).forEach(([k,v]) => {
-          CRT.setParam(k, v);
-          const sr = sliderRev[k];
-          if(sr) {
-            const el = g(sr[0]);
-            if(el) { el.value = Math.round(v * sr[1]); const vEl = g('vC'+sr[0].slice(1)); if(vEl) vEl.textContent = el.value; }
-          }
-        });
+        Object.entries(vals).forEach(([k,v]) => CRT.setParam(k, v));
+        syncCRTSliders();
       }
       // Circuit bend — amplitude drives data corruption effects
       if(crtCircuitBend) {
@@ -977,27 +970,30 @@ function startLoop(){
         const phase = beatPhase;
         const hit = amp > 0.6 && rand < amp * 0.5;
         const cbVals = {
-          clockSkew:     hit ? amp * 0.8 : amp * 0.05,
-          dataBend:      hit ? amp * 0.7 + rand * 0.3 : amp * 0.03,
-          bitCrush:      hit ? amp * 0.6 : 0,
-          lineCorrupt:   hit ? amp * 0.5 : amp * 0.02,
-          pixelStretch:  hit ? amp * 0.7 : 0,
-          colorDrift:    amp * 0.6 + Math.sin(phase * 6.28) * 0.2,
-          channelSwap:   hit ? Math.floor(rand * 5) : 0,
-          feedback:      amp * 0.4,
-          linesSkip:     hit ? amp * 0.3 : 0,
-          shockwave:     hit ? amp * 0.5 : 0,
-          staticBurst:   hit ? rand * 0.6 : 0,
+          clockSkew:      hit ? amp * 0.8 : amp * 0.05,
+          dataBend:       hit ? amp * 0.7 + rand * 0.3 : amp * 0.03,
+          bitCrush:       hit ? amp * 0.6 : 0,
+          lineCorrupt:    hit ? amp * 0.5 : amp * 0.02,
+          pixelStretch:   hit ? amp * 0.7 : 0,
+          colorDrift:     amp * 0.6 + Math.sin(phase * 6.28) * 0.2,
+          channelSwap:    hit ? Math.floor(rand * 5) : 0,
+          feedback:       amp * 0.4,
+          linesSkip:      hit ? amp * 0.3 : 0,
+          shockwave:      hit ? amp * 0.5 : 0,
+          staticBurst:    hit ? rand * 0.6 : 0,
+          ruttEtra:       hit ? amp * 0.5 : amp * 0.05,
+          vCollapse:      hit ? amp * 0.3 : 0,
+          sCurve:         amp * 0.4 + Math.sin(phase * 3.14) * 0.2,
+          emi:            hit ? amp * 0.6 : amp * 0.05,
+          humBar:         amp * 0.3,
+          zoomBlur:       hit ? amp * 0.4 : 0,
+          lumaDisplace:   hit ? amp * 0.5 : amp * 0.03,
+          noiseDisplace:  hit ? amp * 0.4 : 0,
         };
-        const cbSliderRev = {clockSkew:['cClockSkew',100], dataBend:['cDataBend',100], bitCrush:['cBitCrush',100], lineCorrupt:['cLineCorrupt',100], pixelStretch:['cPixelStretch',100], colorDrift:['cColorDrift',100], feedback:['cFeedback',100], staticBurst:['cStaticBurst',100], shockwave:['cShockwave',100]};
         Object.entries(cbVals).forEach(([k,v]) => {
           CRT.setParam(k, v);
-          const sr = cbSliderRev[k];
-          if(sr) {
-            const el = g(sr[0]);
-            if(el) { el.value = Math.round(v * sr[1]); const vEl = g('vC'+sr[0].slice(1)); if(vEl) vEl.textContent = el.value; }
-          }
         });
+        syncCRTSliders();
       }
       CRT.render(oc, oc.width, oc.height);
     } else if(currentTab==='scrub') {
@@ -1789,7 +1785,7 @@ g('cAmpGlitch').addEventListener('click', function() {
 
 // Circuit bend — amplitude drives circuit bending effects
 let crtCircuitBend = false;
-const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst'];
+const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst','ruttEtra','vCollapse','sCurve','emi','humBar','zoomBlur','lumaDisplace','noiseDisplace'];
 g('cCircuitBend').addEventListener('click', function() {
   crtCircuitBend = !crtCircuitBend;
   this.textContent = crtCircuitBend ? 'circuit bend: on' : 'circuit bend: off';
