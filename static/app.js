@@ -1810,9 +1810,33 @@ async function pollNowPlaying() {
   updateSpotifyUI(track);
 }
 
+let _ltTimer = null;
+function showLowerThird(track) {
+  if (!track) return;
+  const lt = g('lowerThird');
+  const art = g('ltArt');
+  const song = g('ltSong');
+  const artist = g('ltArtist');
+  song.textContent = track.name || '';
+  artist.textContent = track.artists ? track.artists.map(a => a.name).join(', ') : '';
+  if (track.album && track.album.images && track.album.images.length) {
+    art.src = (track.album.images[1] || track.album.images[0]).url;
+    art.style.display = 'block';
+  } else { art.style.display = 'none'; }
+  lt.classList.remove('lt-out');
+  lt.style.display = 'flex';
+  if (_ltTimer) clearTimeout(_ltTimer);
+  _ltTimer = setTimeout(() => {
+    lt.classList.add('lt-out');
+    setTimeout(() => { lt.style.display = 'none'; }, 600);
+  }, 8000);
+}
+
 function onTrackChange(track, features) {
   // Swap to random clip from pool on track change
   if (clipPool.length > 1) pickRandomClip();
+  // Show lower third
+  showLowerThird(track);
 
   if (!features) return;
 

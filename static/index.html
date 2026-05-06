@@ -30,6 +30,13 @@
     <div class="view-area">
       <video id="vid" preload="auto" playsinline muted></video>
       <canvas id="crtCanvas"></canvas>
+      <div class="lower-third" id="lowerThird" style="display:none;">
+        <img class="lt-art" id="ltArt">
+        <div class="lt-text">
+          <div class="lt-song" id="ltSong"></div>
+          <div class="lt-artist" id="ltArtist"></div>
+        </div>
+      </div>
       <div class="unlock-overlay" id="unlockOverlay">
         <div class="unlock-text">click to enable scrubbing</div>
         <button class="unlock-btn" id="unlockBtn">unlock</button>
