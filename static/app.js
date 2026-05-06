@@ -1811,7 +1811,8 @@ async function pollNowPlaying() {
 }
 
 let _ltTimer = null;
-let _ltMode = 'none'; // none, slide, on, greek
+let _ltMode = 'none'; // none, slide, on
+let _ltLang = 'english'; // english, greek
 let _ltLastTrack = null;
 
 // Fake Greek fallback (Latin → Greek lookalikes)
@@ -1838,7 +1839,14 @@ document.querySelectorAll('[data-ltmode]').forEach(btn => {
     _ltMode = this.dataset.ltmode;
     document.querySelectorAll('[data-ltmode]').forEach(b => b.classList.toggle('active', b.dataset.ltmode === _ltMode));
     if (_ltMode === 'none') { g('lowerThird').style.display = 'none'; if(_ltTimer) clearTimeout(_ltTimer); }
-    if ((_ltMode === 'on' || _ltMode === 'greek') && _ltLastTrack) showLowerThird(_ltLastTrack);
+    if (_ltMode !== 'none' && _ltLastTrack) showLowerThird(_ltLastTrack);
+  });
+});
+document.querySelectorAll('[data-ltlang]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    _ltLang = this.dataset.ltlang;
+    document.querySelectorAll('[data-ltlang]').forEach(b => b.classList.toggle('active', b.dataset.ltlang === _ltLang));
+    if (_ltMode !== 'none' && _ltLastTrack) showLowerThird(_ltLastTrack);
   });
 });
 
@@ -1851,7 +1859,7 @@ async function showLowerThird(track) {
   const artist = g('ltArtist');
   const songText = track.name || '';
   const artistText = track.artists ? track.artists.map(a => a.name).join(', ') : '';
-  if (_ltMode === 'greek') {
+  if (_ltLang === 'greek') {
     song.textContent = await translateToGreek(songText);
     artist.textContent = await translateToGreek(artistText);
   } else {
@@ -1871,7 +1879,7 @@ async function showLowerThird(track) {
       setTimeout(() => { lt.style.display = 'none'; }, 600);
     }, 8000);
   }
-  // 'on' and 'greek' stay visible permanently
+  // 'on' stays visible permanently
 }
 
 function onTrackChange(track, features) {
