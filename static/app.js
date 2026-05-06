@@ -960,7 +960,9 @@ function startLoop(){
       window._crtOCtx.drawImage(vid, 0, 0, oc.width, oc.height);
       // Amplitude-driven glitch — also updates sliders
       if(crtAmpGlitch) {
-        const amp = envelopeAmp / 255;
+        const ampRaw = envelopeAmp / 255;
+        const ampI = gv('cAmpIntensity') / 100;
+        const amp = Math.min(ampRaw * ampI, 1.0);
         const rand = Math.random();
         // Spike hold: sustain glitch, retrigger continuously while loud
         if(!window._ampSpikeHold) window._ampSpikeHold = 0;
@@ -1026,7 +1028,9 @@ function startLoop(){
       }
       // Circuit bend — amplitude drives data corruption effects
       if(crtCircuitBend) {
-        const amp = envelopeAmp / 255;
+        const ampRaw = envelopeAmp / 255;
+        const bendI = gv('cBendIntensity') / 100;
+        const amp = Math.min(ampRaw * bendI, 1.0);
         const rand = Math.random();
         const phase = beatPhase;
         // Spike hold for circuit bend — retrigger while loud
@@ -1860,6 +1864,10 @@ Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
   });
 });
 
+// Intensity sliders
+g('cAmpIntensity').addEventListener('input', function(){ g('vCAmpIntensity').textContent = this.value + '%'; });
+g('cBendIntensity').addEventListener('input', function(){ g('vCBendIntensity').textContent = this.value + '%'; });
+
 // Amplitude-driven random glitch
 let crtAmpGlitch = false;
 const ampGlitchParams = Object.keys(CRT.DEFAULTS);
@@ -1891,3 +1899,32 @@ tlSetupEvents();
 
 // Auto-start Spotify poller if token exists
 if (isSpotifyConnected()) startSpotifyPoller();
+
+// ─── PARTY WATCHDOG ─────────────────────────────────────────────────────────
+// Keeps everything alive for hours-long playback
+setInterval(() => {
+  // Restart animation loop if died
+  if (!animFrame && analyser) {
+    console.log('[watchdog] restarting loop');
+    startLoop();
+  }
+  // Restart Spotify poller if token valid but poller stopped
+  if (isSpotifyConnected() && !spotifyPoller && !document.hidden) {
+    console.log('[watchdog] restarting spotify poller');
+    startSpotifyPoller();
+  }
+  // Recover WebGL context loss
+  if (CRT.isEnabled()) {
+    const crtC = g('crtCanvas');
+    const testGL = crtC.getContext('webgl');
+    if (testGL && testGL.isContextLost()) {
+      console.log('[watchdog] WebGL context lost, reinitializing CRT');
+      CRT.init(crtC);
+    }
+  }
+  // Refresh Spotify token proactively (5min before expiry)
+  if (isSpotifyConnected() && spotifyExpires - Date.now() < 300000) {
+    console.log('[watchdog] proactive token refresh');
+    refreshSpotifyToken();
+  }
+}, 30000); // Check every 30s
