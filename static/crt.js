@@ -357,12 +357,6 @@ void main() {
     uv.x += sin(lineY * 30.0 + t * 5.0) * uWaveDistort * 0.02;
   }
 
-  // ── Random Y-flip (rare glitch) ──
-  if (uGlitchIntensity > 0.0) {
-    float flipTrigger = hash1(floor(t * 0.5) * 3.7);
-    if (flipTrigger > 0.97) uv.y = 1.0 - uv.y;
-  }
-
   // ── Barrel warp ──
   uv = Warp(uv);
 
@@ -681,6 +675,9 @@ void main() {
   // ── Frame ghosting ──
   if (uGhosting > 0.0) {
     vec2 prevUv = vec2(vUv.x, 1.0 - vUv.y);
+    // Rare random Y-flip on ghost frame (~3% chance every 2s)
+    float flipTrigger = hash1(floor(t * 0.5) * 3.7);
+    if (flipTrigger > 0.97) prevUv.y = 1.0 - prevUv.y;
     vec3 prev = texture2D(uPrevFrame, prevUv).rgb;
     col = max(col, prev * uGhosting);
   }
