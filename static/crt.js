@@ -415,33 +415,39 @@ vec2 RGBtoUV(vec3 rgb) {
 }
 
 vec3 noiseBackground(vec2 uv, float t, float scale) {
-  // Scanline-quantized static like analog TV snow
-  float scanY = floor(uv.y * 480.0);
-  float fieldT = floor(t * 60.0); // new noise every frame at 60fps
+  float sY = floor(uv.y * 480.0);
+  float fieldT = floor(t * 60.0);
 
-  // Sharp per-pixel static (different every frame)
-  float n1 = hash2(vec2(uv.x * 1920.0 * scale, scanY) + vec2(fieldT * 13.7, fieldT * 7.3));
+  // Chunky block noise (big irregular blobs, not uniform)
+  float blockX = floor(uv.x * 40.0 * scale);
+  float blockY = floor(uv.y * 30.0 * scale);
+  float block = hash2(vec2(blockX, blockY) + vec2(fieldT * 3.7, fieldT * 1.3));
+  block = pow(block, 3.0); // push most to black, few bright spots
 
-  // Horizontal streaks (scanline-coherent noise)
-  float streak = hash1(scanY * 31.0 + fieldT * 17.1);
-  float streakOn = step(0.7, streak);
-  float streakBright = hash1(scanY * 73.0 + fieldT * 11.3) * streakOn;
+  // Sharp per-pixel grain on top
+  float grain = hash2(vec2(uv.x * 800.0 * scale, sY) + vec2(fieldT * 13.7, 0.0));
+  grain = step(0.85, grain); // sparse bright dots
 
-  // Per-scanline brightness variation (CRT static flicker)
-  float lineBright = 0.7 + hash1(scanY + fieldT * 3.3) * 0.6;
+  // Scanline-coherent horizontal smear
+  float smear = hash1(sY * 17.0 + fieldT * 7.1);
+  smear = pow(smear, 4.0); // mostly dark, rare bright lines
 
-  // Occasional horizontal tear/roll bars
-  float rollBar = smoothstep(0.0, 0.02, abs(fract(uv.y + t * 0.3) - 0.5));
+  // Vertical interference bars (slow drift)
+  float vBar = sin(uv.x * 30.0 + t * 2.0) * 0.5 + 0.5;
+  vBar = pow(vBar, 8.0) * 0.3;
 
-  // Full-screen brightness pump (CRT AGC hunting)
-  float pump = 0.8 + sin(fieldT * 0.7) * 0.2;
+  // Combine: mostly black, sparse bright chunks + dots
+  float n = block * 0.5 + grain * 0.3 + smear * 0.4 + vBar;
 
-  float n = (n1 * 0.7 + streakBright * 0.3) * lineBright * rollBar * pump;
+  // Random blackout frames (flicker)
+  float blackout = step(0.15, hash1(fieldT * 3.3));
+  n *= blackout;
 
-  // Occasional bright flash frames
-  float flash = step(0.95, hash1(fieldT * 7.7)) * 0.5;
+  // Clamp hard — high contrast
+  n = clamp(n, 0.0, 1.0);
+  n = pow(n, 0.7); // slight gamma lift on bright bits
 
-  return vec3(clamp(n + flash, 0.0, 1.0));
+  return vec3(n);
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
