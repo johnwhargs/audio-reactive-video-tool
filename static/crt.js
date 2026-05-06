@@ -3,7 +3,7 @@
 // WebGL post-process: scanlines, mask, barrel warp, chromatic aberration,
 // bad TV distortion, glitch blocks, jitter, bloom, vignette, noise
 
-const CRT = (() => {
+var CRT = (() => {
 
 let gl, program, fb, fbTex, quadBuf, uniforms = {};
 let canvas, enabled = false, preset = 'off';

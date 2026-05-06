@@ -923,7 +923,6 @@ function startLoop(){
     }
 
     // CRT post-process on scrub video
-    if(beatCount%300===0) console.log('[crt-loop] enabled='+CRT.isEnabled()+' tab='+currentTab+' ready='+vid.readyState+' vw='+vid.videoWidth);
     if(currentTab==='scrub' && CRT.isEnabled() && vid.readyState>=2 && vid.videoWidth) {
       const crtC = g('crtCanvas');
       // Match canvas position to video element
