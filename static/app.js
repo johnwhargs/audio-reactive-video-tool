@@ -1875,7 +1875,7 @@ g('cGuillotine').addEventListener('click', function() {
 
 // Guillotine sliders
 const chromaSliders = {
-  cChromaKey:['chromaKey',100], cChromaSimilarity:['chromaSimilarity',100],
+  cChromaKey:['chromaKey',100], cChromaGreen:['chromaGreen',100], cChromaSimilarity:['chromaSimilarity',100],
   cChromaSmoothness:['chromaSmoothness',100], cChromaSpill:['chromaSpill',100],
   cChromaNoiseSpeed:['chromaNoiseSpeed',100], cChromaNoiseScale:['chromaNoiseScale',100]
 };

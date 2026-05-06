@@ -66,6 +66,7 @@ const DEFAULTS = {
   humBar: 0.0,          // AC mains hum bars 0-1
   ghosting: 0.0,        // frame ghosting / persistence 0-1
   chromaKey: 0.0,       // chroma key enable 0-1
+  chromaGreen: 0.2,     // green dominance threshold
   chromaSimilarity: 0.15, // key color match threshold
   chromaSmoothness: 0.2,  // edge softness
   chromaSpill: 0.1,     // spill removal
@@ -206,6 +207,7 @@ uniform float uHumBar;
 uniform float uGhosting;
 uniform sampler2D uPrevFrame;
 uniform float uChromaKey;
+uniform float uChromaGreen;
 uniform float uChromaSimilarity;
 uniform float uChromaSmoothness;
 uniform float uChromaSpill;
@@ -571,8 +573,8 @@ void main() {
 
   // ── Chromakey (Guillotine mode) — green channel dominance ──
   if (uChromaKey > 0.0) {
-    // How much green exceeds red+blue (green dominance)
-    float greenness = col.g - max(col.r, col.b);
+    // How much green exceeds red+blue, scaled by green threshold
+    float greenness = col.g * (1.0 + uChromaGreen * 2.0) - max(col.r, col.b);
     float baseMask = greenness - uChromaSimilarity;
     float mask = 1.0 - pow(clamp(baseMask / max(uChromaSmoothness, 0.001), 0.0, 1.0), 1.5);
     // Spill removal — desaturate green-dominant areas
