@@ -1116,6 +1116,20 @@ function startLoop(){
           waveDistort:     spike ? sAmp * 0.3 : 0,
           mirror:          spike && sRand > 0.95 ? Math.floor(sRand * 6) + 2 : 0,
           flicker:         spike ? sAmp * 0.06 : amp * 0.01,
+          tapeWow:         amp * 0.3,
+          tapeFlutter:     spike ? sAmp * 0.4 : amp * 0.05,
+          headClog:        spike && sRand > 0.85 ? sAmp * 0.5 : 0,
+          vhsPause:        spike && sRand > 0.9 ? sAmp * 0.4 : 0,
+          colorFade:       amp * 0.2,
+          chromaLoss:      spike ? sAmp * 0.3 : 0,
+          gateWeave:       amp * 0.15,
+          scanRainbow:     spike && sRand > 0.8 ? sAmp * 0.4 : 0,
+          edgeGlow:        spike ? sAmp * 0.3 : amp * 0.03,
+          bayerDither:     spike && sRand > 0.85 ? sAmp * 0.3 : 0,
+          ringing:         spike ? sAmp * 0.3 : amp * 0.05,
+          interlace:       amp * 0.3,
+          cornerPurity:    amp * 0.2,
+          degauss:         spike && sRand > 0.9 ? sAmp * 0.5 : 0,
         };
         for (const k in vals) CRT.setParam(k, vals[k]);
         if (_loopFrame % 6 === 0) syncCRTSliders();
@@ -1168,6 +1182,20 @@ function startLoop(){
           lumaDisplace:   hit ? cbAmp * 0.5 : amp * 0.03,
           noiseDisplace:  hit ? cbAmp * 0.4 : 0,
           ghosting:       amp * 0.6 + (hit ? cbFade * 0.3 : 0),
+          tapeWow:        hit ? cbAmp * 0.5 : amp * 0.1,
+          tapeFlutter:    hit ? cbAmp * 0.6 : amp * 0.05,
+          headClog:       hit ? cbAmp * 0.4 : 0,
+          vhsPause:       hit && rand > 0.8 ? cbAmp * 0.5 : 0,
+          colorFade:      amp * 0.3,
+          chromaLoss:     hit ? cbAmp * 0.4 : 0,
+          gateWeave:      amp * 0.2,
+          scanRainbow:    hit ? cbAmp * 0.3 : 0,
+          edgeGlow:       hit ? cbAmp * 0.2 : 0,
+          bayerDither:    hit ? cbAmp * 0.4 : 0,
+          ringing:        hit ? cbAmp * 0.4 : amp * 0.05,
+          interlace:      amp * 0.4,
+          cornerPurity:   amp * 0.25,
+          degauss:        hit && rand > 0.85 ? cbAmp * 0.6 : 0,
         };
         for (const k in cbVals) CRT.setParam(k, cbVals[k]);
         if (_loopFrame % 6 === 0) syncCRTSliders();
@@ -2065,7 +2093,7 @@ g('cAmpGlitch').addEventListener('click', function() {
 
 // Circuit bend — amplitude drives circuit bending effects
 let crtCircuitBend = false;
-const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst','ruttEtra','vCollapse','sCurve','emi','humBar','zoomBlur','lumaDisplace','noiseDisplace','ghosting'];
+const circuitBendParams = Object.keys(CRT.DEFAULTS);
 g('cCircuitBend').addEventListener('click', function() {
   crtCircuitBend = !crtCircuitBend;
   this.textContent = crtCircuitBend ? 'circuit bend: on' : 'circuit bend: off';
