@@ -1864,6 +1864,31 @@ Object.entries(crtSliderMap).forEach(([sliderId, [param, div]]) => {
   });
 });
 
+// Guillotine toggle
+g('cGuillotine').addEventListener('click', function() {
+  const on = this.textContent.includes('off');
+  this.textContent = on ? 'guillotine: on' : 'guillotine: off';
+  this.classList.toggle('active', on);
+  g('guillotineControls').style.display = on ? 'block' : 'none';
+  CRT.setParam('chromaKey', on ? 1.0 : 0.0);
+  if (!on) syncCRTSliders();
+});
+
+// Guillotine sliders
+const chromaSliders = {
+  cChromaKey:['chromaKey',100], cChromaSimilarity:['chromaSimilarity',100],
+  cChromaSmoothness:['chromaSmoothness',100], cChromaSpill:['chromaSpill',100],
+  cChromaNoiseSpeed:['chromaNoiseSpeed',100], cChromaNoiseScale:['chromaNoiseScale',100]
+};
+Object.entries(chromaSliders).forEach(([id,[param,div]]) => {
+  const el = g(id);
+  if(el) el.addEventListener('input', () => {
+    CRT.setParam(param, parseFloat(el.value)/div);
+    const vEl = g('vC'+id.slice(1));
+    if(vEl) vEl.textContent = el.value;
+  });
+});
+
 // Intensity sliders
 g('cAmpIntensity').addEventListener('input', function(){ g('vCAmpIntensity').textContent = this.value + '%'; });
 g('cBendIntensity').addEventListener('input', function(){ g('vCBendIntensity').textContent = this.value + '%'; });

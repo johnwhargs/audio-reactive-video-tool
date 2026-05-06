@@ -233,6 +233,17 @@
             <button class="btn" id="cAmpGlitch" style="flex:1;">amp glitch: off</button>
             <button class="btn" id="cCircuitBend" style="flex:1;">circuit bend: off</button>
           </div>
+          <div class="btn-row" style="margin-top:5px;margin-bottom:5px;">
+            <button class="btn" id="cGuillotine" style="flex:1;">guillotine: off</button>
+          </div>
+          <div id="guillotineControls" style="display:none;">
+            <div class="sr"><span class="sl">key amount</span><input type="range" min="0" max="100" value="100" step="1" id="cChromaKey"><span class="sv" id="vCChromaKey">100</span></div>
+            <div class="sr"><span class="sl">similarity</span><input type="range" min="1" max="50" value="15" step="1" id="cChromaSimilarity"><span class="sv" id="vCChromaSimilarity">15</span></div>
+            <div class="sr"><span class="sl">smoothness</span><input type="range" min="1" max="50" value="20" step="1" id="cChromaSmoothness"><span class="sv" id="vCChromaSmoothness">20</span></div>
+            <div class="sr"><span class="sl">spill</span><input type="range" min="1" max="50" value="10" step="1" id="cChromaSpill"><span class="sv" id="vCChromaSpill">10</span></div>
+            <div class="sr"><span class="sl">noise speed</span><input type="range" min="10" max="300" value="100" step="10" id="cChromaNoiseSpeed"><span class="sv" id="vCChromaNoiseSpeed">100</span></div>
+            <div class="sr"><span class="sl">noise scale</span><input type="range" min="10" max="300" value="100" step="10" id="cChromaNoiseScale"><span class="sv" id="vCChromaNoiseScale">100</span></div>
+          </div>
           <div class="sr"><span class="sl">amp intensity</span><input type="range" min="10" max="200" value="100" step="5" id="cAmpIntensity"><span class="sv" id="vCAmpIntensity">100%</span></div>
           <div class="sr"><span class="sl">bend intensity</span><input type="range" min="10" max="200" value="100" step="5" id="cBendIntensity"><span class="sv" id="vCBendIntensity">100%</span></div>
         </div>

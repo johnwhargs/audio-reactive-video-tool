@@ -65,6 +65,12 @@ const DEFAULTS = {
   emi: 0.0,             // electromagnetic interference 0-1
   humBar: 0.0,          // AC mains hum bars 0-1
   ghosting: 0.0,        // frame ghosting / persistence 0-1
+  chromaKey: 0.0,       // chroma key enable 0-1
+  chromaSimilarity: 0.15, // key color match threshold
+  chromaSmoothness: 0.2,  // edge softness
+  chromaSpill: 0.1,     // spill removal
+  chromaNoiseSpeed: 1.0,  // noise animation speed
+  chromaNoiseScale: 1.0,  // noise grain size
 };
 
 const PRESETS = {
@@ -199,6 +205,12 @@ uniform float uEmi;
 uniform float uHumBar;
 uniform float uGhosting;
 uniform sampler2D uPrevFrame;
+uniform float uChromaKey;
+uniform float uChromaSimilarity;
+uniform float uChromaSmoothness;
+uniform float uChromaSpill;
+uniform float uChromaNoiseSpeed;
+uniform float uChromaNoiseScale;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -321,6 +333,25 @@ float scanWeight(float y, float scanCount) {
   else if (uScanShape > 0.5) { w = 1.0 - uScanlines * (1.0 - abs(frac - 0.5) * 2.0); } // linear
   else { w = 1.0 - uScanlines * exp(-pow((frac-0.5)*4.0, 2.0) * 2.0); w = max(w, 1.0 - uScanlines); } // gaussian
   return w;
+}
+
+// ─── Chromakey helpers ───────────────────────────────────────────────────────
+
+vec2 RGBtoUV(vec3 rgb) {
+  return vec2(
+    rgb.r * -0.169 + rgb.g * -0.331 + rgb.b * 0.5 + 0.5,
+    rgb.r * 0.5 + rgb.g * -0.419 + rgb.b * -0.081 + 0.5
+  );
+}
+
+vec3 noiseBackground(vec2 uv, float t, float scale) {
+  vec2 p = uv * scale * 100.0;
+  float n1 = hash2(p + vec2(t * 1000.0, 0.0));
+  float n2 = snoise(p * 0.3 + vec2(t * 5.0, t * 3.0));
+  float n3 = snoise(p * 0.08 + vec2(t * 2.0, -t * 1.5));
+  float n = n1 * 0.6 + n2 * 0.25 + n3 * 0.15;
+  float flash = step(0.97, hash1(floor(t * 8.0) * 7.3)) * 0.4;
+  return vec3(n + flash);
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
@@ -536,6 +567,21 @@ void main() {
     bleed += texture2D(uTexture, uv - vec2(px*3.0, 0.0)).rgb;
     bleed += texture2D(uTexture, uv - vec2(px*4.0, 0.0)).rgb;
     col = mix(col, bleed / 4.0, uColorBleed * 0.3);
+  }
+
+  // ── Chromakey (Guillotine mode) ──
+  if (uChromaKey > 0.0) {
+    vec3 keyColor = vec3(0.0, 1.0, 0.0); // green screen
+    float chromaDist = distance(RGBtoUV(col), RGBtoUV(keyColor));
+    float baseMask = chromaDist - uChromaSimilarity;
+    float mask = pow(clamp(baseMask / max(uChromaSmoothness, 0.001), 0.0, 1.0), 1.5);
+    // Spill removal — desaturate near key color
+    float spillMask = pow(clamp(baseMask / max(uChromaSpill, 0.001), 0.0, 1.0), 1.5);
+    float desat = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = mix(vec3(desat), col, spillMask);
+    // Replace keyed areas with animated noise
+    vec3 bg = noiseBackground(vUv, t * uChromaNoiseSpeed, uChromaNoiseScale);
+    col = mix(bg, col, mix(1.0, mask, uChromaKey));
   }
 
   // ── Color drift (RGB phase separation over time) ──
