@@ -1860,8 +1860,11 @@ async function showLowerThird(track) {
   const songText = track.name || '';
   const artistText = track.artists ? track.artists.map(a => a.name).join(', ') : '';
   if (_ltLang === 'greek') {
-    song.textContent = await translateToGreek(songText);
-    artist.textContent = await translateToGreek(artistText);
+    const translatedSong = await translateToGreek(songText);
+    song.textContent = (translatedSong === songText) ? fakeGreek(songText) : translatedSong;
+    const translatedArtist = await translateToGreek(artistText);
+    // If Google Translate returned proper nouns unchanged, force transliteration
+    artist.textContent = (translatedArtist === artistText) ? fakeGreek(artistText) : translatedArtist;
   } else {
     song.textContent = songText;
     artist.textContent = artistText;
