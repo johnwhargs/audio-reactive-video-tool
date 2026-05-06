@@ -989,6 +989,7 @@ function startLoop(){
           zoomBlur:       hit ? amp * 0.4 : 0,
           lumaDisplace:   hit ? amp * 0.5 : amp * 0.03,
           noiseDisplace:  hit ? amp * 0.4 : 0,
+          ghosting:       amp * 0.6 + (hit ? 0.3 : 0),
         };
         Object.entries(cbVals).forEach(([k,v]) => {
           CRT.setParam(k, v);
@@ -1752,6 +1753,7 @@ const crtSliderMap = {
   cSCurve:      ['sCurve', 100],
   cEmi:         ['emi', 100],
   cHumBar:      ['humBar', 100],
+  cGhosting:    ['ghosting', 100],
 };
 
 function syncCRTSliders() {
@@ -1798,7 +1800,7 @@ g('cAmpGlitch').addEventListener('click', function() {
 
 // Circuit bend — amplitude drives circuit bending effects
 let crtCircuitBend = false;
-const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst','ruttEtra','vCollapse','sCurve','emi','humBar','zoomBlur','lumaDisplace','noiseDisplace'];
+const circuitBendParams = ['clockSkew','dataBend','bitCrush','lineCorrupt','pixelStretch','colorDrift','channelSwap','feedback','linesSkip','shockwave','staticBurst','ruttEtra','vCollapse','sCurve','emi','humBar','zoomBlur','lumaDisplace','noiseDisplace','ghosting'];
 g('cCircuitBend').addEventListener('click', function() {
   crtCircuitBend = !crtCircuitBend;
   this.textContent = crtCircuitBend ? 'circuit bend: on' : 'circuit bend: off';

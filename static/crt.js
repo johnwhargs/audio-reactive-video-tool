@@ -7,6 +7,7 @@ var CRT = (() => {
 
 let gl, program, fb, fbTex, quadBuf, uniforms = {};
 let canvas, enabled = false, preset = 'off';
+let prevFrameTex = null, prevFBO = null, prevW = 0, prevH = 0;
 let params = {};
 const DEFAULTS = {
   scanlines: 0.0,       // 0-1 scanline darkness
@@ -63,6 +64,7 @@ const DEFAULTS = {
   sCurve: 0.0,          // capacitor ripple distort 0-1
   emi: 0.0,             // electromagnetic interference 0-1
   humBar: 0.0,          // AC mains hum bars 0-1
+  ghosting: 0.0,        // frame ghosting / persistence 0-1
 };
 
 const PRESETS = {
@@ -195,6 +197,8 @@ uniform float uVCollapse;
 uniform float uSCurve;
 uniform float uEmi;
 uniform float uHumBar;
+uniform float uGhosting;
+uniform sampler2D uPrevFrame;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -668,6 +672,12 @@ void main() {
     col *= clamp(v, 0.0, 1.0);
   }
 
+  // ── Frame ghosting ──
+  if (uGhosting > 0.0) {
+    vec3 prev = texture2D(uPrevFrame, vUv).rgb;
+    col = max(col, prev * uGhosting);
+  }
+
   // ── Brightness ──
   col *= uBrightness;
 
@@ -721,6 +731,20 @@ function init(targetCanvas) {
   const uNames = ['uTexture','uResolution','uTime',
     ...names.map(k => 'u' + k.charAt(0).toUpperCase() + k.slice(1))];
   uNames.forEach(n => { uniforms[n] = gl.getUniformLocation(program, n); });
+
+  // Previous frame texture for ghosting
+  prevFrameTex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, prevFrameTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
+  gl.uniform1i(gl.getUniformLocation(program, 'uPrevFrame'), 1);
+
+  // FBO for capturing current frame → prev
+  prevFBO = gl.createFramebuffer();
 
   // Set defaults
   params = { ...DEFAULTS };
@@ -782,6 +806,11 @@ function render(source, width, height) {
     }
   });
 
+  // Bind previous frame texture
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, prevFrameTex);
+  gl.uniform1i(gl.getUniformLocation(program, 'uPrevFrame'), 1);
+
   // Ensure quad bound
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   const aP = gl.getAttribLocation(program, 'aPos');
@@ -789,6 +818,13 @@ function render(source, width, height) {
   gl.vertexAttribPointer(aP, 2, gl.FLOAT, false, 0, 0);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // Copy current output to prevFrameTex for next frame ghosting
+  if (params.ghosting > 0) {
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, prevFrameTex);
+    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, width, height, 0);
+  }
 }
 
 // ─── Preset Management ──────────────────────────────────────────────────────
