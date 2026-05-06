@@ -74,8 +74,6 @@ const DEFAULTS = {
   colorFade: 0.0,       // tape aging desaturation 0-1
   chromaLoss: 0.0,      // chroma dropout 0-1
   gateWeave: 0.0,       // film gate registration jitter 0-1
-  filmScratch: 0.0,     // gate scratches + dust 0-1
-  halftone: 0.0,        // CMYK dot pattern 0-1
   scanRainbow: 0.0,     // per-scanline hue cycle 0-1
   edgeGlow: 0.0,        // Sobel edge overlay 0-1
   bayerDither: 0.0,     // ordered dither 0-1
@@ -232,8 +230,6 @@ uniform float uVhsPause;
 uniform float uColorFade;
 uniform float uChromaLoss;
 uniform float uGateWeave;
-uniform float uFilmScratch;
-uniform float uHalftone;
 uniform float uScanRainbow;
 uniform float uEdgeGlow;
 uniform float uBayerDither;
@@ -741,31 +737,7 @@ void main() {
     col += vec3(edgeMag) * uEdgeGlow;
   }
 
-  // ── Film scratch + dust ──
-  if (uFilmScratch > 0.0) {
-    float frame = floor(t * 24.0);
-    // Vertical scratch
-    float scratchX = hash1(frame * 17.3);
-    if (abs(vUv.x - scratchX) < 0.001) col += vec3(0.6 * uFilmScratch);
-    // Second scratch
-    float scratchX2 = hash1(frame * 31.7);
-    if (abs(vUv.x - scratchX2) < 0.0008 && hash1(frame * 3.3) > 0.6)
-      col += vec3(0.4 * uFilmScratch);
-    // Dust specks
-    float dustSeed = hash2(vUv * 200.0 + vec2(frame * 0.1, 0.0));
-    if (dustSeed > 0.998) col = mix(col, vec3(0.8), uFilmScratch * 0.5);
-  }
 
-  // ── Halftone (CMYK dot pattern) ──
-  if (uHalftone > 0.0) {
-    float dotSize = mix(8.0, 3.0, uHalftone);
-    vec2 dotUv = floor(vUv * res / dotSize) * dotSize / res;
-    vec3 dotCol = texture2D(uTexture, dotUv).rgb;
-    float luma = dot(dotCol, vec3(0.299, 0.587, 0.114));
-    vec2 cellUv = fract(vUv * res / dotSize) - 0.5;
-    float dot = smoothstep(luma * 0.5, luma * 0.5 - 0.1, length(cellUv));
-    col = mix(col, col * dot, uHalftone);
-  }
 
   // ── Bayer dither ──
   if (uBayerDither > 0.0) {

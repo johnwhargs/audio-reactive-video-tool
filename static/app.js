@@ -1937,8 +1937,6 @@ const crtSliderMap = {
   cColorFade:   ['colorFade', 100],
   cChromaLoss:  ['chromaLoss', 100],
   cGateWeave:   ['gateWeave', 100],
-  cFilmScratch: ['filmScratch', 100],
-  cHalftone:    ['halftone', 100],
   cScanRainbow: ['scanRainbow', 100],
   cEdgeGlow:    ['edgeGlow', 100],
   cBayerDither: ['bayerDither', 100],
