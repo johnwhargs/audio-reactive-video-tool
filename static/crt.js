@@ -82,10 +82,10 @@ const DEFAULTS = {
   cornerPurity: 0.0,    // corner color error 0-1
   degauss: 0.0,         // degauss wobble 0-1
   chromaKey: 0.0,       // chroma key enable 0-1
-  chromaGreen: 0.2,     // green dominance threshold
-  chromaSimilarity: 0.15, // key color match threshold
-  chromaSmoothness: 0.2,  // edge softness
-  chromaSpill: 0.1,     // spill removal
+  chromaGreen: 0.5,     // green boost for dominance detection
+  chromaSimilarity: 0.1, // how green must it be (lower = more keyed)
+  chromaSmoothness: 0.15, // edge softness
+  chromaSpill: 0.15,    // green spill removal
   chromaNoiseSpeed: 1.0,  // noise animation speed
   chromaNoiseScale: 1.0,  // noise grain size
 };
@@ -813,19 +813,28 @@ void main() {
     col.b *= 1.0 - purity * uCornerPurity * 0.3;
   }
 
-  // ── Chromakey (Guillotine mode) — green channel dominance ──
+  // ── Chromakey (Guillotine mode) — dual method: YUV distance + green dominance ──
   if (uChromaKey > 0.0) {
-    // How much green exceeds red+blue, scaled by green threshold
-    float greenness = col.g * (1.0 + uChromaGreen * 2.0) - max(col.r, col.b);
-    float baseMask = greenness - uChromaSimilarity;
-    float mask = 1.0 - pow(clamp(baseMask / max(uChromaSmoothness, 0.001), 0.0, 1.0), 1.5);
-    // Spill removal — desaturate green-dominant areas
-    float spillMask = 1.0 - pow(clamp(baseMask / max(uChromaSpill, 0.001), 0.0, 1.0), 1.5);
-    float desat = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    col = mix(vec3(desat), col, spillMask);
+    // Method 1: YUV chroma distance (accurate color matching)
+    vec3 keyColor = vec3(0.0, 1.0, 0.0);
+    float chromaDist = distance(RGBtoUV(col), RGBtoUV(keyColor));
+
+    // Method 2: Green channel dominance (catches near-greens)
+    float greenDom = col.g * (1.0 + uChromaGreen) - max(col.r, col.b) * 0.8;
+
+    // Combine: use whichever detects more green
+    float greenScore = max(1.0 - chromaDist * 3.0, greenDom * 2.0);
+    greenScore = clamp(greenScore - uChromaSimilarity, 0.0, 1.0);
+    float mask = pow(clamp(greenScore / max(uChromaSmoothness, 0.01), 0.0, 1.0), 1.2);
+
+    // Spill removal
+    float spillAmt = pow(clamp(greenScore / max(uChromaSpill, 0.01), 0.0, 1.0), 1.5);
+    float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col.g = mix(col.g, luma, spillAmt * 0.8);
+
     // Replace keyed areas with animated noise
     vec3 bg = noiseBackground(vUv, t * uChromaNoiseSpeed, uChromaNoiseScale);
-    col = mix(col, bg, (1.0 - mask) * uChromaKey);
+    col = mix(col, bg, mask * uChromaKey);
   }
 
   // ── Color drift (RGB phase separation over time) ──
