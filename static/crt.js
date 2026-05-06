@@ -218,8 +218,13 @@ uniform float uChromaNoiseScale;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const float SCANLINES = 480.0; // NTSC scanline count — all effects quantize to this
+
 float hash1(float n) { return fract(sin(n) * 43758.5453123); }
 float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+
+// Quantize Y to scanline grid
+float scanY(float y) { return floor(y * SCANLINES) / SCANLINES; }
 
 // Simplex-ish noise
 float snoise(vec2 p) {
@@ -244,7 +249,7 @@ vec2 Warp(vec2 uv) {
 
 float badTV(vec2 uv, float t) {
   float d = 0.0;
-  float lineY = floor(uv.y * 480.0) / 480.0;
+  float lineY = scanY(uv.y);
 
   if (uDistortion > 0.0) {
     float psRipple = sin(t * 120.0 * 6.28318) * 0.25;
@@ -384,7 +389,7 @@ void main() {
   vec2 uv = vUv;
   float t = uTime;
   vec2 res = uResolution;
-  float scanCount = 480.0;
+  float scanCount = SCANLINES;
 
   // ── Mirror / Kaleidoscope ──
   if (uMirror > 0.5) {
@@ -398,17 +403,19 @@ void main() {
     uv = vec2(cos(angle), sin(angle)) * r + 0.5;
   }
 
-  // ── Vortex ──
+  // ── Vortex (scanline-quantized) ──
   if (uVortex > 0.0) {
-    vec2 c = uv - 0.5;
+    vec2 c = vec2(uv.x, scanY(uv.y)) - 0.5;
     float r = length(c);
     float a = atan(c.y, c.x) + uVortex * (1.0 - r) * 3.0;
-    uv = vec2(cos(a), sin(a)) * r + 0.5;
+    vec2 vort = vec2(cos(a), sin(a)) * r + 0.5;
+    uv.x = vort.x;
+    uv.y = scanY(vort.y);
   }
 
   // ── Wave distortion ──
   if (uWaveDistort > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     uv.x += sin(lineY * 30.0 + t * 5.0) * uWaveDistort * 0.02;
   }
 
@@ -423,7 +430,7 @@ void main() {
 
   // ── H-Sync loss ──
   if (uHSyncLoss > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     float barber = sin(lineY * 50.0 + t * 20.0);
     float loss = smoothstep(0.3, 0.8, barber) * uHSyncLoss;
     uv.x += loss * 0.05;
@@ -447,14 +454,14 @@ void main() {
 
   // ── Data bend ──
   if (uDataBend > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     float bend = hash1(lineY * 173.0 + floor(t * 8.0) * 7.7);
     if (bend > 0.85) uv.x += (bend - 0.85) * uDataBend * 0.3;
   }
 
   // ── Jitter ──
   if (uJitter > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     float j = (hash1(lineY * 211.0 + floor(t * 60.0)) - 0.5) * 2.0;
     j += sin(lineY * 15.0 + t * 8.0) * 0.5;
     uv.x += j * uJitter * 0.005;
@@ -468,11 +475,12 @@ void main() {
     if (abs(uv.y - tearY2) < 0.002) uv.x -= uScreenTear * 0.02;
   }
 
-  // ── S-Curve distortion (capacitor failure) ──
+  // ── S-Curve distortion (scanline-quantized capacitor failure) ──
   if (uSCurve > 0.0) {
     float drift = t * 0.15;
-    float ripple = sin(uv.y * 6.28318 * 2.0 + drift * 6.28318) * 0.5
-                 + sin(uv.y * 6.28318 * 4.0 + drift * 6.28318 * 1.3) * 0.25;
+    float sY = scanY(uv.y);
+    float ripple = sin(sY * 6.28318 * 2.0 + drift * 6.28318) * 0.5
+                 + sin(sY * 6.28318 * 4.0 + drift * 6.28318 * 1.3) * 0.25;
     uv.x += ripple * uSCurve * 0.02;
   }
 
@@ -488,24 +496,29 @@ void main() {
     uv.y -= reLuma * uRuttEtra * 0.15;
   }
 
-  // ── Zoom blur ──
+  // ── Zoom blur (scanline-quantized) ──
   if (uZoomBlur > 0.0) {
-    vec2 zbC = uv - 0.5;
+    vec2 zbC = vec2(uv.x, scanY(uv.y)) - 0.5;
     float zbD = length(zbC);
-    uv = 0.5 + zbC * (1.0 + zbD * uZoomBlur * 0.5);
+    vec2 zb = 0.5 + zbC * (1.0 + zbD * uZoomBlur * 0.5);
+    uv.x = zb.x;
+    uv.y = scanY(zb.y);
   }
 
-  // ── Luma displace (brightness warps X) ──
+  // ── Luma displace (scanline-quantized) ──
   if (uLumaDisplace > 0.0) {
-    float ldLuma = dot(texture2D(uTexture, uv).rgb, vec3(0.299, 0.587, 0.114));
+    vec2 ldUv = vec2(uv.x, scanY(uv.y));
+    float ldLuma = dot(texture2D(uTexture, ldUv).rgb, vec3(0.299, 0.587, 0.114));
     uv.x += (ldLuma - 0.5) * uLumaDisplace * 0.06;
   }
 
-  // ── Noise displace (organic warp) ──
+  // ── Noise displace (scanline-quantized) ──
   if (uNoiseDisplace > 0.0) {
-    float nd1 = snoise(uv * 8.0 + vec2(t * 0.3, 0.0));
-    float nd2 = snoise(uv * 8.0 + vec2(0.0, t * 0.37));
-    uv += (vec2(nd1, nd2) - 0.5) * uNoiseDisplace * 0.03;
+    vec2 ndUv = vec2(uv.x, scanY(uv.y));
+    float nd1 = snoise(ndUv * 8.0 + vec2(t * 0.3, 0.0));
+    float nd2 = snoise(ndUv * 8.0 + vec2(0.0, t * 0.37));
+    uv.x += (nd1 - 0.5) * uNoiseDisplace * 0.03;
+    uv.y = scanY(uv.y + (nd2 - 0.5) * uNoiseDisplace * 0.03);
   }
 
   // ── Pixelate ──
@@ -516,7 +529,7 @@ void main() {
 
   // ── Pixel stretch ──
   if (uPixelStretch > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     float band = snoise(vec2(lineY * 5.0, t * 0.5));
     if (band > 0.7) {
       float stretchAmt = (band - 0.7) * uPixelStretch * 3.0;
@@ -526,7 +539,7 @@ void main() {
 
   // ── Clock skew ──
   if (uClockSkew > 0.0) {
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     float skew = sin(lineY * 50.0 + t * 3.0) * uClockSkew * 0.05;
     uv.x = 0.5 + (uv.x - 0.5) * (1.0 + skew);
   }
@@ -536,13 +549,13 @@ void main() {
     vec2 c = uv - 0.5;
     float r = length(c);
     float wave = sin(r * 30.0 - t * 8.0) * uShockwave * 0.02;
-    float lineY = floor(uv.y * scanCount) / scanCount;
+    float lineY = scanY(uv.y);
     uv += normalize(c + 0.001) * wave * smoothstep(0.5, 0.0, r);
   }
 
   // ── Line corrupt ──
   if (uLineCorrupt > 0.0) {
-    float lineY = floor(uv.y * scanCount);
+    float lineY = floor(uv.y * SCANLINES);
     float corrupt = hash1(lineY * 73.0 + floor(t * 15.0));
     if (corrupt > 1.0 - uLineCorrupt * 0.15) {
       uv.x += (hash1(lineY * 31.0 + t * 100.0) - 0.5) * 0.2;
@@ -551,7 +564,7 @@ void main() {
 
   // ── Lines skip ──
   if (uLinesSkip > 0.0) {
-    float lineY = floor(uv.y * scanCount);
+    float lineY = floor(uv.y * SCANLINES);
     float skip = hash1(lineY * 41.0 + floor(t * 8.0));
     if (skip > 1.0 - uLinesSkip * 0.1) {
       uv.y += 1.0 / scanCount;
@@ -564,11 +577,14 @@ void main() {
     return;
   }
 
+  // ── Quantize sampling to scanline grid (analog feel) ──
+  vec2 sampleUv = vec2(uv.x, scanY(uv.y));
+
   // ── Sample with chromatic aberration + RGB shift ──
   vec3 col;
   float ca = uChromatic / res.x;
   float shift = uRGBShift / res.x;
-  vec2 dir = (uv - 0.5);
+  vec2 dir = (sampleUv - 0.5);
   float dist = length(dir);
 
   // Convergence offset
@@ -578,9 +594,17 @@ void main() {
   vec2 rOff = dir * ca * dist + vec2(shift, 0.0) + convR;
   vec2 bOff = -dir * ca * dist - vec2(shift, 0.0) + convB;
 
-  col.r = texture2D(uTexture, uv + rOff).r;
-  col.g = texture2D(uTexture, uv).g;
-  col.b = texture2D(uTexture, uv + bOff).b;
+  // Horizontal bandwidth limit: 3-tap IIR blur (analog luma bandwidth ~330 TV lines)
+  float bw = 1.5 / res.x;
+  col.r = (texture2D(uTexture, sampleUv + rOff).r +
+           texture2D(uTexture, sampleUv + rOff + vec2(bw, 0.0)).r +
+           texture2D(uTexture, sampleUv + rOff - vec2(bw, 0.0)).r) / 3.0;
+  col.g = (texture2D(uTexture, sampleUv).g +
+           texture2D(uTexture, sampleUv + vec2(bw, 0.0)).g +
+           texture2D(uTexture, sampleUv - vec2(bw, 0.0)).g) / 3.0;
+  col.b = (texture2D(uTexture, sampleUv + bOff).b +
+           texture2D(uTexture, sampleUv + bOff + vec2(bw, 0.0)).b +
+           texture2D(uTexture, sampleUv + bOff - vec2(bw, 0.0)).b) / 3.0;
 
   // ── Color bleed ──
   if (uColorBleed > 0.0) {
@@ -751,6 +775,12 @@ void main() {
     vec3 prev = texture2D(uPrevFrame, prevUv).rgb;
     col = mix(col, max(col, prev), ghostAmt);
   }
+
+  // ── Analog signal conditioning ──
+  // Black level lift (no pure black on analog — 7.5 IRE setup)
+  col = col * 0.92 + 0.03;
+  // Soft clip highlights (analog knee — no hard digital clipping)
+  col = col / (1.0 + max(col - 0.85, 0.0) * 2.0);
 
   // ── Brightness ──
   col *= uBrightness;

@@ -1032,7 +1032,14 @@ function startLoop(){
       if(oc.width !== CRT_W || oc.height !== CRT_H) {
         oc.width = CRT_W; oc.height = CRT_H;
       }
-      window._crtOCtx.drawImage(vid, 0, 0, CRT_W, CRT_H);
+      // Aspect-correct fill (cover, crop edges)
+      const ctx = window._crtOCtx;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, CRT_W, CRT_H);
+      const vw = vid.videoWidth, vh = vid.videoHeight;
+      const scale = Math.max(CRT_W / vw, CRT_H / vh);
+      const dw = vw * scale, dh = vh * scale;
+      ctx.drawImage(vid, (CRT_W - dw) / 2, (CRT_H - dh) / 2, dw, dh);
       // Auto-randomize intensity
       updateAutoIntensity();
       // Amplitude-driven glitch — also updates sliders
