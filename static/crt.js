@@ -67,6 +67,22 @@ const DEFAULTS = {
   emi: 0.0,             // electromagnetic interference 0-1
   humBar: 0.0,          // AC mains hum bars 0-1
   ghosting: 0.0,        // frame ghosting / persistence 0-1
+  tapeWow: 0.0,         // slow capstan wobble 0-1
+  tapeFlutter: 0.0,     // fast pinch roller jitter 0-1
+  headClog: 0.0,        // dirty head noise bursts 0-1
+  vhsPause: 0.0,        // head switching bars 0-1
+  colorFade: 0.0,       // tape aging desaturation 0-1
+  chromaLoss: 0.0,      // chroma dropout 0-1
+  gateWeave: 0.0,       // film gate registration jitter 0-1
+  filmScratch: 0.0,     // gate scratches + dust 0-1
+  halftone: 0.0,        // CMYK dot pattern 0-1
+  scanRainbow: 0.0,     // per-scanline hue cycle 0-1
+  edgeGlow: 0.0,        // Sobel edge overlay 0-1
+  bayerDither: 0.0,     // ordered dither 0-1
+  ringing: 0.0,         // edge overshoot 0-1
+  interlace: 0.0,       // interlace lines 0-1
+  cornerPurity: 0.0,    // corner color error 0-1
+  degauss: 0.0,         // degauss wobble 0-1
   chromaKey: 0.0,       // chroma key enable 0-1
   chromaGreen: 0.2,     // green dominance threshold
   chromaSimilarity: 0.15, // key color match threshold
@@ -82,7 +98,8 @@ const PRESETS = {
     scanlines:0.2, curvature:10, bloom:0.4, chromatic:2, vignette:0.4,
     brightness:0.95, saturation:0.9, maskType:1, noise:0.06, distortion:1.5,
     distortion2:0.8, colorBleed:0.25, jitter:0.2, rollLine:0.3, persistence:0.3,
-    flicker:0.04
+    flicker:0.04, tapeWow:0.3, tapeFlutter:0.2, colorFade:0.3, chromaLoss:0.1,
+    ringing:0.15, interlace:0.3
   },
   arcade: {
     scanlines:0.5, curvature:15, bloom:0.4, chromatic:1.5, vignette:0.55,
@@ -208,6 +225,22 @@ uniform float uEmi;
 uniform float uHumBar;
 uniform float uGhosting;
 uniform sampler2D uPrevFrame;
+uniform float uTapeWow;
+uniform float uTapeFlutter;
+uniform float uHeadClog;
+uniform float uVhsPause;
+uniform float uColorFade;
+uniform float uChromaLoss;
+uniform float uGateWeave;
+uniform float uFilmScratch;
+uniform float uHalftone;
+uniform float uScanRainbow;
+uniform float uEdgeGlow;
+uniform float uBayerDither;
+uniform float uRinging;
+uniform float uInterlace;
+uniform float uCornerPurity;
+uniform float uDegauss;
 uniform float uChromaKey;
 uniform float uChromaGreen;
 uniform float uChromaSimilarity;
@@ -577,6 +610,46 @@ void main() {
     return;
   }
 
+  // ── Tape wow (slow capstan drift) ──
+  if (uTapeWow > 0.0) {
+    float wow = sin(t * 0.8) * 0.5 + sin(t * 1.3) * 0.3 + sin(t * 0.3) * 0.2;
+    uv.x += wow * uTapeWow * 0.008;
+    uv.y += sin(t * 0.5) * uTapeWow * 0.002;
+  }
+
+  // ── Tape flutter (fast jitter) ──
+  if (uTapeFlutter > 0.0) {
+    float sY = scanY(uv.y);
+    float flutter = sin(sY * 200.0 + t * 47.0) * 0.3
+                  + sin(sY * 80.0 + t * 13.0) * 0.4
+                  + hash1(sY * 100.0 + floor(t * 60.0)) * 0.3;
+    uv.x += flutter * uTapeFlutter * 0.003;
+  }
+
+  // ── VHS pause (head switching bars) ──
+  if (uVhsPause > 0.0) {
+    float pauseY = fract(t * 0.05);
+    float barDist = abs(uv.y - pauseY);
+    if (barDist < 0.08 * uVhsPause) {
+      uv.x += (hash1(scanY(uv.y) * 77.0 + floor(t * 30.0)) - 0.5) * uVhsPause * 0.1;
+      uv.y += (hash1(scanY(uv.y) * 33.0 + floor(t * 30.0)) - 0.5) * uVhsPause * 0.02;
+    }
+  }
+
+  // ── Gate weave (film registration jitter) ──
+  if (uGateWeave > 0.0) {
+    float frame = floor(t * 24.0);
+    uv.x += (hash1(frame * 13.7) - 0.5) * uGateWeave * 0.004;
+    uv.y += (hash1(frame * 7.3) - 0.5) * uGateWeave * 0.003;
+  }
+
+  // ── Degauss wobble ──
+  if (uDegauss > 0.0) {
+    float dg = sin(t * 30.0) * exp(-t * 2.0) * uDegauss;
+    uv.x += dg * 0.01 * sin(uv.y * 20.0);
+    uv.y += dg * 0.008 * cos(uv.x * 15.0);
+  }
+
   // ── Quantize sampling to scanline grid (analog feel) ──
   vec2 sampleUv = vec2(uv.x, scanY(uv.y));
 
@@ -615,6 +688,125 @@ void main() {
     bleed += texture2D(uTexture, uv - vec2(px*3.0, 0.0)).rgb;
     bleed += texture2D(uTexture, uv - vec2(px*4.0, 0.0)).rgb;
     col = mix(col, bleed / 4.0, uColorBleed * 0.3);
+  }
+
+  // ── Head clog (dirty heads — noise bursts) ──
+  if (uHeadClog > 0.0) {
+    float sY = scanY(vUv.y);
+    float clogBand = smoothstep(0.3, 0.35, sY) * smoothstep(0.55, 0.5, sY);
+    float clogNoise = hash2(vec2(vUv.x * 500.0, floor(t * 30.0))) * clogBand;
+    float clogTrigger = step(0.8, hash1(floor(t * 4.0) * 11.3));
+    col = mix(col, vec3(clogNoise), uHeadClog * clogTrigger * 0.6);
+  }
+
+  // ── Chroma loss (partial B&W dropout) ──
+  if (uChromaLoss > 0.0) {
+    float sY = scanY(vUv.y);
+    float lossZone = step(0.7, hash1(sY * 41.0 + floor(t * 8.0)));
+    float luma = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(col, vec3(luma), uChromaLoss * lossZone);
+  }
+
+  // ── Color fade (tape aging) ──
+  if (uColorFade > 0.0) {
+    col.r *= 1.0 - uColorFade * 0.15;
+    col.b *= 1.0 - uColorFade * 0.4;
+    float luma = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(col, vec3(luma), uColorFade * 0.3);
+  }
+
+  // ── Ringing (edge overshoot) ──
+  if (uRinging > 0.0) {
+    float px = 1.0 / res.x;
+    vec3 left = texture2D(uTexture, sampleUv - vec2(px * 2.0, 0.0)).rgb;
+    vec3 right = texture2D(uTexture, sampleUv + vec2(px * 2.0, 0.0)).rgb;
+    vec3 edge = col * 2.0 - (left + right) * 0.5;
+    col += (edge - col) * uRinging * 0.3;
+  }
+
+  // ── Edge glow (Sobel edge detection overlay) ──
+  if (uEdgeGlow > 0.0) {
+    float px = 1.0 / res.x, py = 1.0 / res.y;
+    float tl = dot(texture2D(uTexture, sampleUv + vec2(-px,-py)).rgb, vec3(0.33));
+    float t2 = dot(texture2D(uTexture, sampleUv + vec2(0.0,-py)).rgb, vec3(0.33));
+    float tr = dot(texture2D(uTexture, sampleUv + vec2(px,-py)).rgb, vec3(0.33));
+    float ml = dot(texture2D(uTexture, sampleUv + vec2(-px,0.0)).rgb, vec3(0.33));
+    float mr = dot(texture2D(uTexture, sampleUv + vec2(px,0.0)).rgb, vec3(0.33));
+    float bl = dot(texture2D(uTexture, sampleUv + vec2(-px,py)).rgb, vec3(0.33));
+    float b2 = dot(texture2D(uTexture, sampleUv + vec2(0.0,py)).rgb, vec3(0.33));
+    float br = dot(texture2D(uTexture, sampleUv + vec2(px,py)).rgb, vec3(0.33));
+    float gx = -tl - 2.0*ml - bl + tr + 2.0*mr + br;
+    float gy = -tl - 2.0*t2 - tr + bl + 2.0*b2 + br;
+    float edgeMag = sqrt(gx*gx + gy*gy);
+    col += vec3(edgeMag) * uEdgeGlow;
+  }
+
+  // ── Film scratch + dust ──
+  if (uFilmScratch > 0.0) {
+    float frame = floor(t * 24.0);
+    // Vertical scratch
+    float scratchX = hash1(frame * 17.3);
+    if (abs(vUv.x - scratchX) < 0.001) col += vec3(0.6 * uFilmScratch);
+    // Second scratch
+    float scratchX2 = hash1(frame * 31.7);
+    if (abs(vUv.x - scratchX2) < 0.0008 && hash1(frame * 3.3) > 0.6)
+      col += vec3(0.4 * uFilmScratch);
+    // Dust specks
+    float dustSeed = hash2(vUv * 200.0 + vec2(frame * 0.1, 0.0));
+    if (dustSeed > 0.998) col = mix(col, vec3(0.8), uFilmScratch * 0.5);
+  }
+
+  // ── Halftone (CMYK dot pattern) ──
+  if (uHalftone > 0.0) {
+    float dotSize = mix(8.0, 3.0, uHalftone);
+    vec2 dotUv = floor(vUv * res / dotSize) * dotSize / res;
+    vec3 dotCol = texture2D(uTexture, dotUv).rgb;
+    float luma = dot(dotCol, vec3(0.299, 0.587, 0.114));
+    vec2 cellUv = fract(vUv * res / dotSize) - 0.5;
+    float dot = smoothstep(luma * 0.5, luma * 0.5 - 0.1, length(cellUv));
+    col = mix(col, col * dot, uHalftone);
+  }
+
+  // ── Bayer dither ──
+  if (uBayerDither > 0.0) {
+    vec2 px = floor(mod(vUv * res, 4.0));
+    int idx = int(px.x) + int(px.y) * 4;
+    float bayer;
+    if(idx==0)bayer=0.0/16.0;else if(idx==1)bayer=8.0/16.0;else if(idx==2)bayer=2.0/16.0;else if(idx==3)bayer=10.0/16.0;
+    else if(idx==4)bayer=12.0/16.0;else if(idx==5)bayer=4.0/16.0;else if(idx==6)bayer=14.0/16.0;else if(idx==7)bayer=6.0/16.0;
+    else if(idx==8)bayer=3.0/16.0;else if(idx==9)bayer=11.0/16.0;else if(idx==10)bayer=1.0/16.0;else if(idx==11)bayer=9.0/16.0;
+    else if(idx==12)bayer=15.0/16.0;else if(idx==13)bayer=7.0/16.0;else if(idx==14)bayer=13.0/16.0;else bayer=5.0/16.0;
+    float levels = mix(256.0, 4.0, uBayerDither);
+    col = floor(col * levels + bayer) / levels;
+  }
+
+  // ── Scanline rainbow (per-line hue cycle) ──
+  if (uScanRainbow > 0.0) {
+    float sY = scanY(vUv.y);
+    float hue = fract(sY * 10.0 + t * 0.5);
+    vec3 rainbow = vec3(
+      0.5 + 0.5 * cos(6.28318 * (hue + 0.0)),
+      0.5 + 0.5 * cos(6.28318 * (hue + 0.333)),
+      0.5 + 0.5 * cos(6.28318 * (hue + 0.666))
+    );
+    col = mix(col, col * rainbow * 1.5, uScanRainbow * 0.5);
+  }
+
+  // ── Interlace ──
+  if (uInterlace > 0.0) {
+    float field = mod(floor(t * 60.0), 2.0);
+    float line = floor(vUv.y * SCANLINES);
+    float oddEven = mod(line + field, 2.0);
+    col *= 1.0 - oddEven * uInterlace * 0.3;
+  }
+
+  // ── Corner purity error ──
+  if (uCornerPurity > 0.0) {
+    vec2 c = vUv * 2.0 - 1.0;
+    float cornerDist = max(abs(c.x), abs(c.y));
+    float purity = smoothstep(0.6, 1.0, cornerDist);
+    col.r *= 1.0 + purity * uCornerPurity * 0.3;
+    col.b *= 1.0 - purity * uCornerPurity * 0.3;
   }
 
   // ── Chromakey (Guillotine mode) — green channel dominance ──

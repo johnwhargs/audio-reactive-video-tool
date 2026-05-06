@@ -1930,6 +1930,22 @@ const crtSliderMap = {
   cEmi:         ['emi', 100],
   cHumBar:      ['humBar', 100],
   cGhosting:    ['ghosting', 100],
+  cTapeWow:     ['tapeWow', 100],
+  cTapeFlutter: ['tapeFlutter', 100],
+  cHeadClog:    ['headClog', 100],
+  cVhsPause:    ['vhsPause', 100],
+  cColorFade:   ['colorFade', 100],
+  cChromaLoss:  ['chromaLoss', 100],
+  cGateWeave:   ['gateWeave', 100],
+  cFilmScratch: ['filmScratch', 100],
+  cHalftone:    ['halftone', 100],
+  cScanRainbow: ['scanRainbow', 100],
+  cEdgeGlow:    ['edgeGlow', 100],
+  cBayerDither: ['bayerDither', 100],
+  cRinging:     ['ringing', 100],
+  cInterlace:   ['interlace', 100],
+  cCornerPurity:['cornerPurity', 100],
+  cDegauss:     ['degauss', 100],
 };
 
 function syncCRTSliders() {
