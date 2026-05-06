@@ -274,7 +274,7 @@ async function toggleMic() {
 }
 async function toggleSysAudio() {
   const btn=g('sysBtn');
-  if(sysStream){sysStream.getTracks().forEach(t=>t.stop());sysStream=null;btn.classList.remove('active');btn.textContent='sys';g('audioStatus').textContent='stopped';return;}
+  if(sysStream){sysStream.getTracks().forEach(t=>t.stop());sysStream=null;btn.classList.remove('active');btn.textContent='sys';g('audioStatus').textContent='stopped';try{analyser.connect(audioCtx.destination);}catch(e){}return;}
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
     sysStream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false},video:true});
@@ -282,9 +282,10 @@ async function toggleSysAudio() {
     const tracks=sysStream.getAudioTracks(); if(!tracks.length){g('audioStatus').textContent='no audio — check share audio';sysStream=null;return;}
     const sysSource=audioCtx.createMediaStreamSource(sysStream);
     sysSource.connect(analyser);
-    // Don't connect to destination — prevents echo from system audio looping back
+    // Disconnect analyser from speakers to prevent echo
+    try { analyser.disconnect(audioCtx.destination); } catch(e) {}
     btn.classList.add('active'); btn.textContent='sys on'; g('audioStatus').textContent=tracks[0].label||'system active';
-    tracks[0].addEventListener('ended',()=>{sysStream=null;btn.classList.remove('active');btn.textContent='sys';});
+    tracks[0].addEventListener('ended',()=>{sysStream=null;btn.classList.remove('active');btn.textContent='sys';try{analyser.connect(audioCtx.destination);}catch(e){}});
     startLoop();
   } catch(e){g('audioStatus').textContent=e.name==='NotAllowedError'?'cancelled':'error: '+e.message;}
 }
@@ -1591,11 +1592,7 @@ async function pollNowPlaying() {
 
   if (changed) {
     spotifyCurrentTrackId = trackId;
-    // Fetch audio features (may 403 without Premium)
-    let features = null;
-    try { features = await spotifyFetch('/audio-features/' + trackId); } catch(e) {}
-    spotifyFeatures = features;
-    onTrackChange(track, features);
+    onTrackChange(track, null);
   }
 
   updateSpotifyUI(track);
