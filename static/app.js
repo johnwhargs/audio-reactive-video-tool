@@ -816,7 +816,10 @@ function startBake(){
     // Capture CRT output if active, otherwise raw video
     if(CRT.isEnabled() && window._crtOC) {
       window._crtOCtx.drawImage(vid,0,0,1920,1080);
-      try { CRT.render(window._crtOC, 1920, 1080); } catch(e){}
+      const bakeRatio = gv('cGlitchRatio') / 100;
+      if (Math.random() < bakeRatio) {
+        try { CRT.render(window._crtOC, 1920, 1080); } catch(e){}
+      }
       bctx.drawImage(g('crtCanvas'),0,0,1920,1080);
     } else {
       bctx.drawImage(vid,0,0,bc.width,bc.height);
@@ -1200,7 +1203,11 @@ function startLoop(){
         for (const k in cbVals) CRT.setParam(k, cbVals[k]);
         if (_loopFrame % 6 === 0) syncCRTSliders();
       }
-      try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
+      const glitchRatio = gv('cGlitchRatio') / 100;
+      if (Math.random() < glitchRatio) {
+        try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
+      }
+      // else: clean frame passthrough (no CRT render, raw video shows)
     } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
       vid.style.opacity = '1';
@@ -2066,6 +2073,7 @@ function syncCRTSliders() {
 g('crtPreset').addEventListener('change', function() {
   CRT.setPreset(this.value);
   g('crtControls').style.display = this.value === 'off' ? 'none' : 'block';
+  g('crtRatioRow').style.display = this.value === 'off' ? 'none' : 'block';
   g('crtCanvas').style.display = this.value === 'off' ? 'none' : 'block';
   if (this.value === 'off') vid.style.display = 'block';
   else vid.style.display = 'block'; // keep video visible underneath
@@ -2110,6 +2118,7 @@ Object.entries(chromaSliders).forEach(([id,[param,div]]) => {
 // Intensity sliders
 g('cAmpIntensity').addEventListener('input', function(){ g('vCAmpIntensity').textContent = this.value + '%'; });
 g('cBendIntensity').addEventListener('input', function(){ g('vCBendIntensity').textContent = this.value + '%'; });
+g('cGlitchRatio').addEventListener('input', function(){ g('vCGlitchRatio').textContent = this.value + '%'; });
 
 // Intensity mode: none / peak / auto
 let intensityMode = 'none';

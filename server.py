@@ -26,6 +26,11 @@ def index():
     return send_from_directory('static', 'index.html')
 
 
+@app.route('/cleaner')
+def cleaner():
+    return send_from_directory('static', 'cleaner.html')
+
+
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
     if 'file' not in request.files:

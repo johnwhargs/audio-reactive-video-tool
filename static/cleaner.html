@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP4 Cleaner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111; color: #ccc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 30px; }
+  h1 { font-size: 18px; color: #4ade80; margin-bottom: 6px; }
+  .subtitle { font-size: 11px; color: #666; margin-bottom: 24px; }
+  .drop-zone { width: 100%; max-width: 600px; border: 2px dashed #333; border-radius: 12px; padding: 60px 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #4ade80; background: #0a1f0a; }
+  .drop-zone p { font-size: 14px; color: #666; pointer-events: none; }
+  .drop-zone .big { font-size: 32px; margin-bottom: 8px; }
+  input[type="file"] { display: none; }
+  .jobs { width: 100%; max-width: 600px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .job { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 16px; }
+  .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .job-name { font-size: 13px; color: #eee; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+  .job-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .job-status.processing { background: #1a2a1a; color: #4ade80; }
+  .job-status.done { background: #0a2a0a; color: #22c55e; }
+  .job-status.error { background: #2a1a1a; color: #f87171; }
+  .job-status.uploading { background: #1a1a2a; color: #60a5fa; }
+  .progress-bar { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #4ade80; border-radius: 3px; transition: width 0.3s; width: 0%; }
+  .progress-fill.uploading { background: #60a5fa; }
+  .job-actions { margin-top: 8px; display: flex; gap: 8px; }
+  .job-actions a, .job-actions button { font-size: 11px; color: #4ade80; background: none; border: 1px solid #4ade80; padding: 3px 10px; border-radius: 4px; cursor: pointer; text-decoration: none; }
+  .job-actions a:hover, .job-actions button:hover { background: #4ade80; color: #111; }
+  .job-error { font-size: 11px; color: #f87171; margin-top: 6px; }
+  .job-info { font-size: 10px; color: #555; margin-top: 4px; }
+  .batch-bar { width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+  .batch-bar span { font-size: 11px; color: #555; }
+  .batch-bar button { font-size: 11px; color: #ccc; background: #222; border: 1px solid #333; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+  .batch-bar button:hover { border-color: #4ade80; color: #4ade80; }
+</style>
+</head>
+<body>
+
+<h1>MP4 Cleaner</h1>
+<p class="subtitle">re-encode with all keyframes for smooth scrubbing &middot; drop one or many</p>
+
+<div class="drop-zone" id="dropZone">
+  <p class="big">&#128253;</p>
+  <p>drop MP4 files here or click to browse</p>
+</div>
+<input type="file" id="fileInput" accept="video/*" multiple>
+
+<div class="batch-bar" id="batchBar" style="display:none;">
+  <span id="batchStatus"></span>
+  <button id="clearDone" onclick="clearDone()">clear finished</button>
+</div>
+
+<div class="jobs" id="jobs"></div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const jobsEl = document.getElementById('jobs');
+const batchBar = document.getElementById('batchBar');
+const batchStatus = document.getElementById('batchStatus');
+const jobMap = new Map();
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (!f.type.startsWith('video/') && !f.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) continue;
+    uploadFile(f);
+  }
+}
+
+async function uploadFile(file) {
+  const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const el = document.createElement('div');
+  el.className = 'job';
+  el.id = 'job-' + id;
+  el.innerHTML = `
+    <div class="job-header">
+      <span class="job-name">${file.name}</span>
+      <span class="job-status uploading" id="status-${id}">uploading</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill uploading" id="prog-${id}"></div></div>
+    <div class="job-info" id="info-${id}">${formatSize(file.size)}</div>
+  `;
+  jobsEl.prepend(el);
+  updateBatch();
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    // Upload with XHR for progress
+    const jobId = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/preprocess');
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded / e.total * 100);
+          document.getElementById('prog-' + id).style.width = pct + '%';
+          document.getElementById('info-' + id).textContent = `uploading ${formatSize(e.loaded)} / ${formatSize(e.total)}`;
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.job_id);
+        } else {
+          reject(new Error('Upload failed: ' + xhr.status));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Upload failed'));
+      xhr.send(form);
+    });
+
+    // Switch to processing
+    const statusEl = document.getElementById('status-' + id);
+    const progEl = document.getElementById('prog-' + id);
+    const infoEl = document.getElementById('info-' + id);
+    statusEl.textContent = 'processing';
+    statusEl.className = 'job-status processing';
+    progEl.className = 'progress-fill';
+    progEl.style.width = '0%';
+    infoEl.textContent = 'encoding...';
+
+    jobMap.set(id, { jobId, file: file.name });
+
+    // SSE progress
+    const evs = new EventSource('/preprocess/' + jobId + '/stream');
+    evs.onmessage = e => {
+      const d = JSON.parse(e.data);
+      progEl.style.width = d.progress + '%';
+      infoEl.textContent = `encoding ${d.progress}%`;
+
+      if (d.status === 'done') {
+        evs.close();
+        statusEl.textContent = 'done';
+        statusEl.className = 'job-status done';
+        progEl.style.width = '100%';
+        infoEl.textContent = '';
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'job-actions';
+        actionsEl.innerHTML = `<a href="/preprocess/${jobId}/download" download="${file.name.replace(/\.[^.]+$/, '')}_clean.mp4">download</a>`;
+        el.appendChild(actionsEl);
+        updateBatch();
+      } else if (d.status === 'error') {
+        evs.close();
+        statusEl.textContent = 'error';
+        statusEl.className = 'job-status error';
+        const errEl = document.createElement('div');
+        errEl.className = 'job-error';
+        errEl.textContent = d.error;
+        el.appendChild(errEl);
+        updateBatch();
+      }
+    };
+    evs.onerror = () => { evs.close(); };
+
+  } catch (err) {
+    const statusEl = document.getElementById('status-' + id);
+    statusEl.textContent = 'error';
+    statusEl.className = 'job-status error';
+    const errEl = document.createElement('div');
+    errEl.className = 'job-error';
+    errEl.textContent = err.message;
+    el.appendChild(errEl);
+    updateBatch();
+  }
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function updateBatch() {
+  const jobs = document.querySelectorAll('.job');
+  const done = document.querySelectorAll('.job-status.done').length;
+  const errs = document.querySelectorAll('.job-status.error').length;
+  const total = jobs.length;
+  if (total === 0) { batchBar.style.display = 'none'; return; }
+  batchBar.style.display = 'flex';
+  batchStatus.textContent = `${done} done, ${total - done - errs} processing, ${errs} errors — ${total} total`;
+}
+
+function clearDone() {
+  document.querySelectorAll('.job').forEach(j => {
+    if (j.querySelector('.job-status.done')) j.remove();
+  });
+  updateBatch();
+}
+</script>
+</body>
+</html>
