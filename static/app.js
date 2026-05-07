@@ -817,12 +817,11 @@ function startBake(){
     if(CRT.isEnabled() && window._crtOC) {
       window._crtOCtx.drawImage(vid,0,0,1920,1080);
       const bakeRatio = gv('cGlitchRatio') / 100;
-      if (Math.random() < bakeRatio) {
-        try { CRT.render(window._crtOC, 1920, 1080); } catch(e){}
-        bctx.drawImage(g('crtCanvas'),0,0,1920,1080);
-      } else {
-        bctx.drawImage(vid,0,0,1920,1080);
-      }
+      const bakeClean = Math.random() >= bakeRatio;
+      if (bakeClean) { for (let i = 0; i < _glitchKeys.length; i++) CRT.setParam(_glitchKeys[i], 0); }
+      try { CRT.render(window._crtOC, 1920, 1080); } catch(e){}
+      if (bakeClean) { for (let i = 0; i < _glitchKeys.length; i++) CRT.setParam(_glitchKeys[i], _glitchSaved[i]); }
+      bctx.drawImage(g('crtCanvas'),0,0,1920,1080);
     } else {
       bctx.drawImage(vid,0,0,bc.width,bc.height);
     }
@@ -1206,13 +1205,18 @@ function startLoop(){
         if (_loopFrame % 6 === 0) syncCRTSliders();
       }
       const glitchRatio = gv('cGlitchRatio') / 100;
-      if (Math.random() < glitchRatio) {
-        try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
-        crtC.style.opacity = '1';
-        vid.style.opacity = '0';
+      const isCleanFrame = Math.random() >= glitchRatio;
+      if (isCleanFrame) {
+        // Zero glitch params, keep CRT aesthetic (scanlines, bloom, etc)
+        for (let i = 0; i < _glitchKeys.length; i++) CRT.setParam(_glitchKeys[i], 0);
+      }
+      try { CRT.render(oc, CRT_W, CRT_H); } catch(e) { console.warn('[crt] render error:', e); }
+      if (isCleanFrame) {
+        // Restore glitch params for next frame
+        for (let i = 0; i < _glitchKeys.length; i++) CRT.setParam(_glitchKeys[i], _glitchSaved[i]);
       } else {
-        crtC.style.opacity = '0';
-        vid.style.opacity = '1';
+        // Save current glitch params for restore on clean frames
+        for (let i = 0; i < _glitchKeys.length; i++) _glitchSaved[i] = CRT.getParam(_glitchKeys[i]);
       }
     } else if(currentTab==='scrub') {
       vid.style.visibility = 'visible';
@@ -2171,6 +2175,18 @@ function updateAutoIntensity() {
     g('vCBendIntensity').textContent = bendVal + '%';
   }
 }
+
+// Glitch ratio: params zeroed on "clean" frames (aesthetic CRT params kept)
+const _glitchKeys = [
+  'distortion','distortion2','glitchIntensity','glitchSpeed','jitter','rgbShift',
+  'rollSpeed','rollLine','screenTear','vSyncWobble','hSyncLoss','dataBend',
+  'clockSkew','lineCorrupt','linesSkip','pixelStretch','channelSwap','shockwave',
+  'staticBurst','solarize','posterize','invert','vortex','waveDistort','mirror',
+  'feedback','ruttEtra','vCollapse','sCurve','emi','zoomBlur','lumaDisplace',
+  'noiseDisplace','tapeWow','tapeFlutter','headClog','vhsPause','chromaLoss',
+  'gateWeave','degauss','ghosting','colorDrift','bitCrush','pixelate'
+];
+const _glitchSaved = new Array(_glitchKeys.length).fill(0);
 
 // Amplitude-driven random glitch
 let crtAmpGlitch = false;
