@@ -115,15 +115,15 @@ input[type=file] { display: none; }
 .channel-dog.dog-visible { opacity: 0.45; }
 
 /* ─── Lower Third (CRT broadcast) ────────────────────────────────────── */
-.lower-third { position: absolute; bottom: 48px; left: 0; display: flex; align-items: stretch; z-index: 20; pointer-events: none; animation: ltSlideIn 0.5s ease-out; font-family: 'Courier New', 'Lucida Console', monospace; transform: scale(0.8); transform-origin: bottom left; mix-blend-mode: screen; image-rendering: pixelated; }
+.lower-third { position: absolute; top: 32px; left: 0; display: flex; align-items: stretch; z-index: 20; pointer-events: none; animation: ltSlideIn 0.5s ease-out; font-family: 'Courier New', 'Lucida Console', monospace; transform: scale(0.8); transform-origin: top left; mix-blend-mode: screen; image-rendering: pixelated; }
 .lower-third.lt-out { animation: ltSlideOut 0.5s ease-in forwards; }
 .lt-text { display: flex; flex-direction: column; justify-content: center; gap: 2px; background: rgba(20, 10, 80, 0.9); padding: 10px 24px 12px 28px; border: 2px solid rgba(100, 140, 255, 0.3); background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px); }
-.lt-artist { font-size: 20px; font-weight: 700; color: #5fff5f; white-space: nowrap; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0 0 8px #5fff5f, 2px 0 0 rgba(255,0,0,0.3), -2px 0 0 rgba(0,100,255,0.3); }
-.lt-song { font-size: 16px; font-weight: 700; color: #ffff50; white-space: nowrap; text-shadow: 0 0 6px #ffff50, 1px 0 0 rgba(255,0,0,0.25), -1px 0 0 rgba(0,100,255,0.25); }
-.lt-album { font-size: 13px; font-weight: 700; color: #50cfff; white-space: nowrap; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 6px #50cfff, 1px 0 0 rgba(255,0,0,0.2), -1px 0 0 rgba(0,100,255,0.2); }
+.lt-artist { font-size: 20px; font-weight: 700; color: #fff; white-space: nowrap; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0 0 8px rgba(255,255,255,0.5), 2px 0 0 rgba(255,0,0,0.3), -2px 0 0 rgba(0,100,255,0.3); }
+.lt-song { font-size: 16px; font-weight: 700; color: #5090ff; white-space: nowrap; text-shadow: 0 0 6px rgba(80,144,255,0.6), 1px 0 0 rgba(255,0,0,0.25), -1px 0 0 rgba(0,100,255,0.25); }
+.lt-album { font-size: 13px; font-weight: 700; color: #5090ff; white-space: nowrap; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 6px rgba(80,144,255,0.5), 1px 0 0 rgba(255,0,0,0.2), -1px 0 0 rgba(0,100,255,0.2); }
 .lt-art { width: auto; height: 100%; object-fit: cover; display: block; aspect-ratio: 1; filter: saturate(1.4) contrast(1.2) brightness(1.1); border-left: 2px solid rgba(100, 140, 255, 0.3); }
-@keyframes ltSlideIn { from { transform: translateX(-100%) scale(0.8); opacity: 0; } to { transform: translateX(0) scale(0.8); opacity: 1; } }
-@keyframes ltSlideOut { from { transform: translateX(0) scale(0.8); opacity: 1; } to { transform: translateX(-100%) scale(0.8); opacity: 0; } }
+@keyframes ltSlideIn { from { transform: translateY(-100%) scale(0.8); opacity: 0; } to { transform: translateY(0) scale(0.8); opacity: 1; } }
+@keyframes ltSlideOut { from { transform: translateY(0) scale(0.8); opacity: 1; } to { transform: translateY(-100%) scale(0.8); opacity: 0; } }
 
 /* ─── Karaoke Overlay (CRT teletext) ─────────────────────────────────── */
 .karaoke-overlay { position: absolute; bottom: 120px; left: 0; right: 0; z-index: 19; pointer-events: none; text-align: center; display: none; flex-direction: column; align-items: center; gap: 2px; mix-blend-mode: screen; }
