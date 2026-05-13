@@ -115,7 +115,7 @@ input[type=file] { display: none; }
 .channel-dog.dog-visible { opacity: 0.45; }
 
 /* ─── Lower Third (MTV style) ─────────────────────────────────────────── */
-.lower-third { position: absolute; bottom: 48px; left: 0; display: flex; align-items: stretch; z-index: 20; pointer-events: none; animation: ltSlideIn 0.5s ease-out; font-family: 'Arial Black', 'Impact', 'Helvetica Neue', Arial, sans-serif; }
+.lower-third { position: absolute; bottom: 48px; left: 0; display: flex; align-items: stretch; z-index: 20; pointer-events: none; animation: ltSlideIn 0.5s ease-out; font-family: 'Arial Black', 'Impact', 'Helvetica Neue', Arial, sans-serif; transform: scale(0.8); transform-origin: bottom left; }
 .lower-third.lt-out { animation: ltSlideOut 0.5s ease-in forwards; }
 .lt-text { display: flex; flex-direction: column; justify-content: center; gap: 1px; background: rgba(40, 20, 120, 0.85); padding: 4px 14px 5px 16px; }
 .lt-artist { font-size: 12px; font-weight: 900; color: #2eff8a; white-space: nowrap; text-transform: uppercase; letter-spacing: 2px; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
