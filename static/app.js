@@ -19,6 +19,13 @@ let flickerActive=false, flickerTimer=0, flickerDir=1, peakHeldFor=0;
 const PEAK_THRESHOLD = 0.92;  // t value considered "at max"
 const PEAK_HOLD_MS = 400;     // how long at max before flicker kicks in
 
+// Channel switch state
+let _chSwitchProgress = 0;    // 0=idle, 0→1=animating
+let _chSwitchStart = 0;       // performance.now() when started
+let _chSwitchDuration = 1000; // ms
+let _chSwitchActive = false;
+let _chSwitchClipPending = false; // delay clip swap to mid-static
+
 // Scrub video
 const vid = document.getElementById('vid');
 let videoUnlocked = false;
@@ -277,6 +284,8 @@ function playNextAudio() {
   if(audioPool.length <= 1) return;
   const next = (activeAudioIdx + 1) % audioPool.length;
   activateAudio(next);
+  // Channel switch on audio track change
+  if (CRT.isEnabled() && clipPool.length > 1) triggerChannelSwitch(1000);
   // Auto-play
   if(!playing) togglePlay();
 }
@@ -1204,8 +1213,10 @@ function startLoop(){
         for (const k in cbVals) CRT.setParam(k, cbVals[k]);
         if (_loopFrame % 6 === 0) syncCRTSliders();
       }
+      // Channel switch override (takes priority over amp glitch)
+      updateChannelSwitch();
       const glitchRatio = gv('cGlitchRatio') / 100;
-      const isCleanFrame = Math.random() >= glitchRatio;
+      const isCleanFrame = !_chSwitchActive && Math.random() >= glitchRatio;
       if (isCleanFrame) {
         // Zero glitch params, keep CRT aesthetic (scanlines, bloom, etc)
         for (let i = 0; i < _glitchKeys.length; i++) CRT.setParam(_glitchKeys[i], 0);
@@ -1234,6 +1245,159 @@ function startLoop(){
     if(beatCount%3===0){drawAudioTL();drawVideoTL();}
   }
   loop();
+}
+
+// ─── CHANNEL SWITCH EFFECT ──────────────────────────────────────────────────
+// Authentic TV channel-change: static burst → clip swap at peak → signal lock
+// Ported from crt-player by John Hargreaves
+
+function playChannelSwitchSound(duration = 0.8) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const dur = Math.max(0.3, duration);
+  const sr = audioCtx.sampleRate;
+
+  // FM-demodulated noise (slightly blue/high-frequency biased)
+  const buf = audioCtx.createBuffer(1, sr * dur, sr);
+  const d = buf.getChannelData(0);
+  let prev = 0;
+  for (let i = 0; i < d.length; i++) {
+    const white = Math.random() * 2 - 1;
+    prev = prev * 0.3 + white * 0.7;
+    d[i] = white * 0.6 + (white - prev) * 0.4;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+
+  // TV speaker bandwidth: 80Hz–9kHz with 3kHz resonance peak
+  const hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 80;
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 9000;
+  const peak = audioCtx.createBiquadFilter();
+  peak.type = 'peaking'; peak.frequency.value = 3000; peak.Q.value = 1.0; peak.gain.value = 4;
+
+  // Envelope: instant attack, hold during static, quick fade as signal locks
+  const gain = audioCtx.createGain();
+  const vol = gainNode ? gainNode.gain.value : 0.5;
+  const attackEnd = now + 0.01;
+  const holdEnd = now + dur * 0.5;
+  const fadeEnd = now + dur * 0.85;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(vol * 0.12, attackEnd);
+  gain.gain.setValueAtTime(vol * 0.1, attackEnd + 0.01);
+  gain.gain.setValueAtTime(vol * 0.1, holdEnd);
+  gain.gain.exponentialRampToValueAtTime(0.001, fadeEnd);
+  gain.gain.setValueAtTime(0, fadeEnd + 0.01);
+
+  src.connect(hp); hp.connect(lp); lp.connect(peak); peak.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(now); src.stop(now + dur);
+
+  // Mains hum (60Hz sawtooth)
+  const humOsc = audioCtx.createOscillator();
+  humOsc.type = 'sawtooth'; humOsc.frequency.value = 60;
+  const humGain = audioCtx.createGain();
+  humGain.gain.setValueAtTime(0, now);
+  humGain.gain.linearRampToValueAtTime(vol * 0.008, attackEnd);
+  humGain.gain.setValueAtTime(vol * 0.006, holdEnd);
+  humGain.gain.exponentialRampToValueAtTime(0.0001, fadeEnd);
+  humOsc.connect(humGain); humGain.connect(audioCtx.destination);
+  humOsc.start(now); humOsc.stop(now + dur);
+
+  // Tuner relay click at start
+  const clickBuf = audioCtx.createBuffer(1, Math.floor(sr * 0.005), sr);
+  const cd = clickBuf.getChannelData(0);
+  for (let i = 0; i < cd.length; i++) cd[i] = (i < 3 ? 0.8 : -0.3) * Math.exp(-i / (sr * 0.001));
+  const clickSrc = audioCtx.createBufferSource(); clickSrc.buffer = clickBuf;
+  const clickGain = audioCtx.createGain(); clickGain.gain.value = vol * 0.15;
+  clickSrc.connect(clickGain); clickGain.connect(audioCtx.destination);
+  clickSrc.start(now);
+
+  setTimeout(() => {
+    try { gain.disconnect(); lp.disconnect(); hp.disconnect(); peak.disconnect(); } catch {}
+    try { humGain.disconnect(); } catch {}
+    try { clickGain.disconnect(); } catch {}
+  }, (dur + 0.2) * 1000);
+}
+
+function triggerChannelSwitch(durationMs = 1000) {
+  _chSwitchActive = true;
+  _chSwitchStart = performance.now();
+  _chSwitchDuration = durationMs;
+  _chSwitchProgress = 0;
+  _chSwitchClipPending = true;
+  playChannelSwitchSound(durationMs / 1000);
+}
+
+// Called each frame from render loop — overrides CRT params during switch
+function updateChannelSwitch() {
+  if (!_chSwitchActive) return;
+  const elapsed = performance.now() - _chSwitchStart;
+  const t = Math.min(elapsed / _chSwitchDuration, 1);
+  _chSwitchProgress = t;
+
+  // Swap clip at peak static (40% through)
+  if (_chSwitchClipPending && t >= 0.4) {
+    _chSwitchClipPending = false;
+    if (clipPool.length > 1) pickRandomClip();
+  }
+
+  // Three-phase CRT override:
+  // Phase 1 (0–0.4): full static burst — PLL retuning
+  // Phase 2 (0.4–0.7): static fading, image emerging with sync issues
+  // Phase 3 (0.7–1.0): AGC settling, color lock stabilizing
+  let staticEnv, rollAmt, syncErr, monoFlash, agcBright;
+  if (t < 0.15) {
+    // Fast attack
+    staticEnv = t / 0.15;
+  } else if (t < 0.4) {
+    // Full static hold
+    staticEnv = 1.0;
+  } else if (t < 0.75) {
+    // Decay
+    staticEnv = 1.0 - (t - 0.4) / 0.35;
+  } else {
+    staticEnv = 0;
+  }
+  rollAmt = t < 0.4 ? t * 2.5 : Math.max(0, (0.7 - t) * 3.3);
+  syncErr = t < 0.5 ? t * 2 : Math.max(0, (0.8 - t) * 3.3);
+  monoFlash = (t > 0.3 && t < 0.8) ? Math.sin((t - 0.3) * 6.28) * 0.5 + 0.5 : 0;
+  agcBright = (t > 0.6 && t < 0.9) ? 1.0 + Math.sin((t - 0.6) * 50) * 0.15 * (0.9 - t) / 0.3 : 1.0;
+
+  const csVals = {
+    staticBurst:   staticEnv * 0.9,
+    noise:         staticEnv * 0.25,
+    rollSpeed:     rollAmt * 0.6,
+    rollLine:      rollAmt > 0.1 ? 0.5 : 0,
+    vSyncWobble:   syncErr * 0.7,
+    hSyncLoss:     syncErr * 0.5,
+    jitter:        staticEnv * 0.6,
+    chromatic:     staticEnv * 4 + syncErr * 2,
+    rgbShift:      staticEnv * 3,
+    distortion:    staticEnv * 2,
+    distortion2:   staticEnv * 1.5,
+    glitchIntensity: staticEnv * 0.6,
+    glitchSpeed:   2 + staticEnv * 3,
+    screenTear:    syncErr * 0.5,
+    colorBleed:    staticEnv * 0.4,
+    humBar:        staticEnv * 0.5,
+    saturation:    1.0 - monoFlash * 0.8,
+    brightness:    agcBright,
+    flicker:       staticEnv * 0.08,
+    feedback:      staticEnv * 0.3,
+    dataBend:      staticEnv * 0.3,
+    pixelStretch:  staticEnv * 0.4,
+  };
+  for (const k in csVals) CRT.setParam(k, csVals[k]);
+
+  if (t >= 1) {
+    _chSwitchActive = false;
+    _chSwitchProgress = 0;
+    // Restore preset values for all overridden keys
+    CRT.restorePresetParams(Object.keys(csVals));
+    syncCRTSliders();
+  }
 }
 
 // ─── CLIP POOL ──────────────────────────────────────────────────────────────
@@ -1903,10 +2067,14 @@ async function showLowerThird(track) {
 }
 
 function onTrackChange(track, features) {
-  // Swap to random clip from pool on track change
-  if (clipPool.length > 1) pickRandomClip();
-  // Show lower third
-  showLowerThird(track);
+  // Channel switch effect — clip swap happens at peak static (40% through)
+  if (CRT.isEnabled() && clipPool.length > 1) {
+    triggerChannelSwitch(1000);
+  } else if (clipPool.length > 1) {
+    pickRandomClip();
+  }
+  // Show lower third (after brief delay so it appears with new clip)
+  setTimeout(() => showLowerThird(track), CRT.isEnabled() ? 450 : 0);
 
   if (!features) return;
 
