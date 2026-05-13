@@ -117,7 +117,7 @@ input[type=file] { display: none; }
 .lt-artist { font-size: 22px; font-weight: 900; color: #2eff8a; white-space: nowrap; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 0 rgba(0,0,0,0.6); }
 .lt-song { font-size: 18px; font-weight: 700; color: #ffd700; white-space: nowrap; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
 .lt-album { font-size: 15px; font-weight: 700; color: #ffd700; white-space: nowrap; text-transform: uppercase; letter-spacing: 1px; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
-.lt-art { width: 80px; height: auto; aspect-ratio: 1; object-fit: cover; display: block; }
+.lt-art { width: 80px; height: 80px; object-fit: cover; display: block; }
 @keyframes ltSlideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes ltSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-100%); opacity: 0; } }
 
