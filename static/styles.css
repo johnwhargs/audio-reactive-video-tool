@@ -132,9 +132,9 @@ input[type=file] { display: none; }
 .karaoke-line { font-size: 28px; font-weight: 900; color: #fff; font-family: 'Arial Black', Impact, sans-serif; text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7); max-width: 85%; transition: opacity 0.15s; }
 .karaoke-line.instrumental { font-style: italic; color: rgba(255,255,255,0.4); font-size: 20px; }
 .k-word { color: rgba(255,255,255,0.4); transition: color 0.15s; position: relative; display: inline-block; }
-.k-word.k-sung { color: #ffd700; }
-.k-word.k-active { color: #2eff8a; }
-.k-word.k-active::before { content: '●'; position: absolute; top: calc(-18px - var(--ball-bounce, 0) * 12px); left: 50%; transform: translateX(-50%); font-size: 14px; color: #2eff8a; text-shadow: 0 0 8px #2eff8a; }
+.k-word.k-sung { color: #fff; }
+.k-word.k-active { color: #0d5eaf; }
+.k-word.k-active::before { content: '●'; position: absolute; top: calc(-18px - var(--ball-bounce, 0) * 12px); left: 50%; transform: translateX(-50%); font-size: 14px; color: #0d5eaf; text-shadow: 0 0 8px #0d5eaf; }
 
 /* ─── Spotify ──────────────────────────────────────────────────────────── */
 .sp-row { margin-top: 6px; }
