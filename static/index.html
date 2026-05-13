@@ -39,6 +39,11 @@
         <img class="lt-art" id="ltArt">
       </div>
       <img class="channel-dog" src="ant-1-dog.png" alt="">
+      <div class="karaoke-overlay" id="karaokeOverlay">
+        <div class="karaoke-prev" id="karaokePrev"></div>
+        <div class="karaoke-line" id="karaokeLine"></div>
+        <div class="karaoke-next" id="karaokeNext"></div>
+      </div>
       <div class="unlock-overlay" id="unlockOverlay">
         <div class="unlock-text">click to enable scrubbing</div>
         <button class="unlock-btn" id="unlockBtn">unlock</button>
@@ -113,6 +118,12 @@
           <button class="btn active" data-ltlang="english">english</button>
           <button class="btn" data-ltlang="greek">ελληνικά</button>
         </div>
+        <div class="stitle" style="margin-top:8px">Karaoke</div>
+        <div class="btn-row btn-row-mb">
+          <button class="btn active" id="karaokeOff" data-karaoke="off">off</button>
+          <button class="btn" id="karaokeOn" data-karaoke="on">on</button>
+        </div>
+        <div id="karaokeStatus" style="font-size:10px;color:#666;margin-top:3px"></div>
       </div>
 
       <div class="section">

@@ -1241,6 +1241,9 @@ function startLoop(){
     // Layers tab (only if on that tab)
     if(currentTab==='layers'&&lyLayers.length) lyDrawPreview();
 
+    // Karaoke sync
+    updateKaraoke();
+
     // Timeline (throttled)
     if(beatCount%3===0){drawAudioTL();drawVideoTL();}
   }
@@ -1982,10 +1985,17 @@ async function pollNowPlaying() {
   spotifyIsPlaying = data.is_playing || false;
   spotifyProgressMs = data.progress_ms || 0;
   spotifyDurationMs = track.duration_ms || 0;
+  _karaokeLastPollTime = performance.now();
 
   if (changed) {
     spotifyCurrentTrackId = trackId;
     onTrackChange(track, null);
+    // Fetch lyrics for karaoke
+    if (_karaokeEnabled) {
+      const artist = track.artists ? track.artists.map(a => a.name).join(', ') : '';
+      const album = track.album ? track.album.name : '';
+      fetchLyrics(track.name, artist, album, track.duration_ms);
+    }
   }
 
   updateSpotifyUI(track);
@@ -2397,6 +2407,148 @@ tlSetupEvents();
 
 // Auto-start Spotify poller if token exists
 if (isSpotifyConnected()) startSpotifyPoller();
+
+// ─── KARAOKE ────────────────────────────────────────────────────────────────
+let _karaokeEnabled = false;
+let _karaokeLyrics = [];       // [{time: ms, text: string}]
+let _karaokePlain = [];        // fallback: [{text: string}] with estimated timing
+let _karaokeLineIdx = -1;
+let _karaokeLastTrackId = null;
+let _karaokeLastPollTime = 0;  // track interpolated progress
+let _karaokeProgressMs = 0;
+
+// Parse LRC format: [mm:ss.xx] text → [{time, text}]
+function parseLRC(lrc) {
+  if (!lrc) return [];
+  const lines = [];
+  for (const line of lrc.split('\n')) {
+    const m = line.match(/^\[(\d+):(\d+)\.(\d+)\]\s*(.*)/);
+    if (m) {
+      const time = parseInt(m[1]) * 60000 + parseInt(m[2]) * 1000 + parseInt(m[3]) * 10;
+      const text = m[4].trim();
+      if (text) lines.push({ time, text });
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+// Fetch synced lyrics from lrclib.net
+async function fetchLyrics(trackName, artistName, albumName, durationMs) {
+  const status = g('karaokeStatus');
+  if (status) status.textContent = 'fetching lyrics...';
+  _karaokeLyrics = [];
+  _karaokePlain = [];
+  _karaokeLineIdx = -1;
+
+  try {
+    const params = new URLSearchParams({
+      track_name: trackName,
+      artist_name: artistName,
+    });
+    if (albumName) params.set('album_name', albumName);
+    if (durationMs) params.set('duration', Math.round(durationMs / 1000));
+    const resp = await fetch('https://lrclib.net/api/get?' + params, {
+      headers: { 'User-Agent': 'vidubber/1.0' }
+    });
+    if (!resp.ok) {
+      // Try search endpoint as fallback
+      const searchResp = await fetch('https://lrclib.net/api/search?q=' + encodeURIComponent(artistName + ' ' + trackName), {
+        headers: { 'User-Agent': 'vidubber/1.0' }
+      });
+      if (searchResp.ok) {
+        const results = await searchResp.json();
+        if (results.length > 0 && results[0].syncedLyrics) {
+          _karaokeLyrics = parseLRC(results[0].syncedLyrics);
+          if (status) status.textContent = _karaokeLyrics.length + ' lines (search)';
+          return;
+        }
+      }
+      if (status) status.textContent = 'no lyrics found';
+      return;
+    }
+    const data = await resp.json();
+    if (data.syncedLyrics) {
+      _karaokeLyrics = parseLRC(data.syncedLyrics);
+      if (status) status.textContent = _karaokeLyrics.length + ' synced lines';
+    } else if (data.plainLyrics) {
+      // Fall back to plain lyrics with estimated timing
+      const lines = data.plainLyrics.split('\n').filter(l => l.trim());
+      const interval = durationMs / (lines.length + 1);
+      _karaokeLyrics = lines.map((text, i) => ({ time: interval * (i + 1), text: text.trim() }));
+      if (status) status.textContent = lines.length + ' lines (estimated)';
+    } else {
+      if (status) status.textContent = 'no lyrics found';
+    }
+  } catch (e) {
+    console.warn('[karaoke] fetch error:', e);
+    if (status) status.textContent = 'fetch error';
+  }
+}
+
+// Update karaoke display — called from render loop
+function updateKaraoke() {
+  if (!_karaokeEnabled || !_karaokeLyrics.length) return;
+  const overlay = g('karaokeOverlay');
+  if (!overlay) return;
+
+  // Interpolate progress between Spotify polls (3s interval)
+  const now = performance.now();
+  if (spotifyIsPlaying && _karaokeLastPollTime > 0) {
+    _karaokeProgressMs = spotifyProgressMs + (now - _karaokeLastPollTime);
+  } else {
+    _karaokeProgressMs = spotifyProgressMs;
+  }
+
+  // Find current line
+  let idx = -1;
+  for (let i = _karaokeLyrics.length - 1; i >= 0; i--) {
+    if (_karaokeProgressMs >= _karaokeLyrics[i].time) { idx = i; break; }
+  }
+
+  if (idx === _karaokeLineIdx) return;
+  _karaokeLineIdx = idx;
+
+  const lineEl = g('karaokeLine');
+  const prevEl = g('karaokePrev');
+  const nextEl = g('karaokeNext');
+
+  if (idx < 0) {
+    prevEl.textContent = '';
+    lineEl.textContent = '';
+    nextEl.textContent = _karaokeLyrics.length ? applyKaraokeGreek(_karaokeLyrics[0].text) : '';
+    return;
+  }
+
+  const curr = _karaokeLyrics[idx];
+  const prev = idx > 0 ? _karaokeLyrics[idx - 1] : null;
+  const next = idx < _karaokeLyrics.length - 1 ? _karaokeLyrics[idx + 1] : null;
+
+  lineEl.textContent = applyKaraokeGreek(curr.text);
+  lineEl.classList.remove('instrumental');
+  prevEl.textContent = prev ? applyKaraokeGreek(prev.text) : '';
+  nextEl.textContent = next ? applyKaraokeGreek(next.text) : '';
+}
+
+function applyKaraokeGreek(text) {
+  return _ltLang === 'greek' ? fakeGreek(text) : text;
+}
+
+// Karaoke button handlers
+document.querySelectorAll('[data-karaoke]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-karaoke]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _karaokeEnabled = btn.dataset.karaoke === 'on';
+    const overlay = g('karaokeOverlay');
+    if (overlay) overlay.classList.toggle('active', _karaokeEnabled);
+    if (_karaokeEnabled && _karaokeLyrics.length === 0 && _ltLastTrack) {
+      const t = _ltLastTrack;
+      const artist = t.artists ? t.artists.map(a => a.name).join(', ') : '';
+      const album = t.album ? t.album.name : '';
+      fetchLyrics(t.name, artist, album, spotifyDurationMs);
+    }
+  });
+});
 
 // ─── PARTY WATCHDOG ─────────────────────────────────────────────────────────
 // Keeps everything alive for hours-long playback
