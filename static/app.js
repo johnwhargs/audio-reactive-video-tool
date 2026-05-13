@@ -2505,28 +2505,62 @@ function updateKaraoke() {
     if (_karaokeProgressMs >= _karaokeLyrics[i].time) { idx = i; break; }
   }
 
-  if (idx === _karaokeLineIdx) return;
-  _karaokeLineIdx = idx;
-
   const lineEl = g('karaokeLine');
   const prevEl = g('karaokePrev');
   const nextEl = g('karaokeNext');
 
-  if (idx < 0) {
-    prevEl.textContent = '';
-    lineEl.textContent = '';
-    nextEl.textContent = _karaokeLyrics.length ? applyKaraokeGreek(_karaokeLyrics[0].text) : '';
-    return;
+  // Line changed — rebuild word spans
+  if (idx !== _karaokeLineIdx) {
+    _karaokeLineIdx = idx;
+
+    if (idx < 0) {
+      prevEl.textContent = '';
+      lineEl.innerHTML = '';
+      nextEl.textContent = _karaokeLyrics.length ? applyKaraokeGreek(_karaokeLyrics[0].text) : '';
+      return;
+    }
+
+    const curr = _karaokeLyrics[idx];
+    const prev = idx > 0 ? _karaokeLyrics[idx - 1] : null;
+    const next = idx < _karaokeLyrics.length - 1 ? _karaokeLyrics[idx + 1] : null;
+
+    // Build word spans for progressive highlight
+    const words = applyKaraokeGreek(curr.text).split(/\s+/);
+    lineEl.innerHTML = words.map((w, i) =>
+      '<span class="k-word" data-wi="' + i + '">' + w + '</span>'
+    ).join(' ');
+    lineEl.classList.remove('instrumental');
+    prevEl.textContent = prev ? applyKaraokeGreek(prev.text) : '';
+    nextEl.textContent = next ? applyKaraokeGreek(next.text) : '';
   }
 
-  const curr = _karaokeLyrics[idx];
-  const prev = idx > 0 ? _karaokeLyrics[idx - 1] : null;
-  const next = idx < _karaokeLyrics.length - 1 ? _karaokeLyrics[idx + 1] : null;
+  if (idx < 0) return;
 
-  lineEl.textContent = applyKaraokeGreek(curr.text);
-  lineEl.classList.remove('instrumental');
-  prevEl.textContent = prev ? applyKaraokeGreek(prev.text) : '';
-  nextEl.textContent = next ? applyKaraokeGreek(next.text) : '';
+  // Word-level progress within current line
+  const curr = _karaokeLyrics[idx];
+  const nextLine = idx < _karaokeLyrics.length - 1 ? _karaokeLyrics[idx + 1] : null;
+  const lineDur = nextLine ? nextLine.time - curr.time : 3000;
+  const lineProgress = Math.min((_karaokeProgressMs - curr.time) / lineDur, 1);
+  const wordEls = lineEl.querySelectorAll('.k-word');
+  const wordCount = wordEls.length;
+  if (!wordCount) return;
+
+  const activeWordIdx = Math.min(Math.floor(lineProgress * wordCount), wordCount - 1);
+  const wordFrac = (lineProgress * wordCount) - activeWordIdx; // 0-1 within current word
+
+  wordEls.forEach((el, i) => {
+    if (i < activeWordIdx) {
+      el.classList.add('k-sung');
+      el.classList.remove('k-active');
+    } else if (i === activeWordIdx) {
+      el.classList.add('k-active');
+      el.classList.remove('k-sung');
+      // Ball position — set CSS var for bounce
+      el.style.setProperty('--ball-bounce', Math.sin(wordFrac * Math.PI).toFixed(2));
+    } else {
+      el.classList.remove('k-sung', 'k-active');
+    }
+  });
 }
 
 function applyKaraokeGreek(text) {
