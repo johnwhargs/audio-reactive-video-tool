@@ -111,7 +111,7 @@ input[type=file] { display: none; }
 .clean-hint { font-size: 10px; color: #facc15; margin-top: 4px; line-height: 1.4; padding: 5px 7px; background: #2a2200; border-radius: 4px; border: 1px solid #3a3000; }
 
 /* ─── Channel DOG (watermark) ─────────────────────────────────────────── */
-.channel-dog { position: absolute; top: 16px; right: 20px; width: 80px; z-index: 20; pointer-events: none; opacity: 0; mix-blend-mode: multiply; transition: opacity 0.4s; }
+.channel-dog { position: absolute; top: 16px; right: 20px; width: 80px; z-index: 20; pointer-events: none; opacity: 0; mix-blend-mode: screen; transition: opacity 0.4s; }
 .channel-dog.dog-visible { opacity: 0.45; }
 
 /* ─── Lower Third (MTV style) ─────────────────────────────────────────── */
