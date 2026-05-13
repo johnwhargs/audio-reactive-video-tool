@@ -2038,17 +2038,24 @@ async function showLowerThird(track) {
   const art = g('ltArt');
   const song = g('ltSong');
   const artist = g('ltArtist');
+  const album = g('ltAlbum');
   const songText = track.name || '';
   const artistText = track.artists ? track.artists.map(a => a.name).join(', ') : '';
+  const albumText = (track.album && track.album.name) ? track.album.name : '';
   if (_ltLang === 'greek') {
     const translatedSong = await translateToGreek(songText);
-    song.textContent = (translatedSong === songText) ? fakeGreek(songText) : translatedSong;
+    song.textContent = '\u201C' + ((translatedSong === songText) ? fakeGreek(songText) : translatedSong) + '\u201D';
     const translatedArtist = await translateToGreek(artistText);
     // If Google Translate returned proper nouns unchanged, force transliteration
     artist.textContent = (translatedArtist === artistText) ? fakeGreek(artistText) : translatedArtist;
+    if (albumText) {
+      const translatedAlbum = await translateToGreek(albumText);
+      album.textContent = (translatedAlbum === albumText) ? fakeGreek(albumText) : translatedAlbum;
+    }
   } else {
-    song.textContent = songText;
+    song.textContent = '\u201C' + songText + '\u201D';
     artist.textContent = artistText;
+    album.textContent = albumText;
   }
   if (track.album && track.album.images && track.album.images.length) {
     art.src = (track.album.images[1] || track.album.images[0]).url;
