@@ -2063,10 +2063,13 @@ async function showLowerThird(track) {
   } else { art.style.display = 'none'; }
   lt.classList.remove('lt-out');
   lt.style.display = 'flex';
+  const dog = document.querySelector('.channel-dog');
+  if (dog) dog.classList.add('dog-visible');
   if (_ltTimer) clearTimeout(_ltTimer);
   if (_ltMode === 'slide') {
     _ltTimer = setTimeout(() => {
       lt.classList.add('lt-out');
+      if (dog) dog.classList.remove('dog-visible');
       setTimeout(() => { lt.style.display = 'none'; }, 600);
     }, 8000);
   }
