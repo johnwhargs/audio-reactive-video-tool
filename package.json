@@ -4,7 +4,8 @@
   "description": "Audio-reactive video tool",
   "main": "main.js",
   "scripts": {
-    "sign": "codesign --sign - --force --deep --entitlements entitlements.plist node_modules/electron/dist/Electron.app",
+    "patch-plist": "/usr/libexec/PlistBuddy -c \"Add :NSAudioCaptureUsageDescription string 'vidubber needs system audio'\" node_modules/electron/dist/Electron.app/Contents/Info.plist 2>/dev/null; /usr/libexec/PlistBuddy -c \"Add :NSScreenCaptureUsageDescription string 'vidubber needs screen capture'\" node_modules/electron/dist/Electron.app/Contents/Info.plist 2>/dev/null; true",
+    "sign": "npm run patch-plist && codesign --sign - --force --deep --entitlements entitlements.plist node_modules/electron/dist/Electron.app",
     "start": "npm run sign && electron .",
     "dev": "npm run sign && electron . --dev",
     "serve": "npx serve static -l 3000 -s"

@@ -3,6 +3,10 @@ const path = require('path');
 const http = require('http');
 const fs = require('fs');
 
+// Enable system audio loopback on macOS
+app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride');
+app.commandLine.appendSwitch('disable-features', 'MacCatapLoopbackAudioForScreenShare');
+
 let win;
 let callbackServer = null;
 
