@@ -380,7 +380,16 @@ async function toggleSysAudio() {
     btn.classList.add('active'); btn.textContent='sys on'; g('audioStatus').textContent=tracks[0].label||'system active';
     tracks[0].addEventListener('ended',()=>{sysStream=null;btn.classList.remove('active');btn.textContent='sys';try{analyser.connect(audioCtx.destination);}catch(e){}});
     startLoop();
-  } catch(e){g('audioStatus').textContent=e.name==='NotAllowedError'?'cancelled':'error: '+e.message; console.warn('[sys audio]', e);}
+  } catch(e){
+    console.warn('[sys audio]', e);
+    if (_isElectron) {
+      g('audioStatus').textContent='grant Screen & Audio Recording in System Settings';
+      // Open System Settings to correct pane
+      if (window.electronAPI) window.electronAPI.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    } else {
+      g('audioStatus').textContent=e.name==='NotAllowedError'?'cancelled':'error: '+e.message;
+    }
+  }
 }
 
 // ─── FILTER / MODE ───────────────────────────────────────────────────────────
