@@ -1865,7 +1865,8 @@ setDepthDir2 = function(d) {
 
 // ─── SPOTIFY ────────────────────────────────────────────────────────────────
 const SPOTIFY_CLIENT_ID = 'a8a5fb0a10df43958dd52137e4051344';
-const SPOTIFY_REDIRECT = window.location.origin + '/callback';
+const _isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
+const SPOTIFY_REDIRECT = _isElectron ? 'http://localhost:8888/callback' : window.location.origin + '/callback';
 const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state user-read-recently-played';
 
 let spotifyToken = localStorage.getItem('spotify_token');
@@ -1904,7 +1905,14 @@ async function spotifyAuth() {
     code_challenge_method: 'S256',
     code_challenge: challenge
   });
-  window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+  const authUrl = 'https://accounts.spotify.com/authorize?' + params.toString();
+  if (_isElectron) {
+    // Start loopback server, open auth in external browser
+    await window.electronAPI.startSpotifyAuth();
+    window.electronAPI.openExternal(authUrl);
+  } else {
+    window.location.href = authUrl;
+  }
 }
 
 function spotifyLogout() {
@@ -2612,3 +2620,81 @@ setInterval(() => {
     refreshSpotifyToken();
   }
 }, 30000); // Check every 30s
+
+// ─── ELECTRON ───────────────────────────────────────────────────────────────
+if (window.electronAPI && window.electronAPI.isElectron) {
+  console.log('[electron] native mode active');
+
+  // Override video "add clips" button → native dialog
+  g('vidBtn').addEventListener('click', async (e) => {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    const files = await window.electronAPI.openVideos();
+    if (!files.length) return;
+    for (const f of files) {
+      clipPool.push({ name: f.name, file: null, url: f.url, cleaned: false, cleanedUrl: null });
+    }
+    renderClipList();
+    if (activeClipIdx === -1 && clipPool.length) activateClip(0);
+    if (clipPool.length) g('batchCleanBtn').style.display = '';
+  }, true); // capture phase to override existing listener
+
+  // Override audio "mp3" button → native dialog
+  g('audioBtn').addEventListener('click', async (e) => {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    const files = await window.electronAPI.openAudio();
+    if (!files.length) return;
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (!analyser) setupAnalyser();
+    let loaded = 0;
+    for (const f of files) {
+      try {
+        const resp = await fetch(f.url);
+        const arrayBuf = await resp.arrayBuffer();
+        const buf = await audioCtx.decodeAudioData(arrayBuf);
+        audioPool.push({ name: f.name, buffer: buf });
+        loaded++;
+        if (loaded === files.length) {
+          renderAudioList();
+          if (activeAudioIdx === -1) activateAudio(0);
+        }
+      } catch(err) {
+        console.warn('[electron] audio decode failed:', f.name, err);
+        loaded++;
+      }
+    }
+  }, true);
+
+  // Spotify OAuth callback from loopback server
+  window.addEventListener('spotify-callback', async (e) => {
+    const code = e.detail && e.detail.code;
+    if (!code) return;
+    const verifier = localStorage.getItem('spotify_verifier');
+    if (!verifier) { console.warn('[electron] missing PKCE verifier'); return; }
+    try {
+      const resp = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: SPOTIFY_CLIENT_ID,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: SPOTIFY_REDIRECT,
+          code_verifier: verifier
+        })
+      });
+      if (!resp.ok) { console.error('[electron] token exchange failed'); return; }
+      const data = await resp.json();
+      spotifyToken = data.access_token;
+      spotifyExpires = Date.now() + (data.expires_in || 3600) * 1000;
+      localStorage.setItem('spotify_token', spotifyToken);
+      localStorage.setItem('spotify_expires', spotifyExpires.toString());
+      if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
+      localStorage.removeItem('spotify_verifier');
+      startSpotifyPoller();
+      updateSpotifyUI(null);
+      console.log('[electron] spotify connected');
+    } catch(err) { console.error('[electron] spotify auth error:', err); }
+  });
+}
