@@ -188,3 +188,13 @@ ipcMain.handle('start-spotify-auth', () => {
 ipcMain.handle('open-external', (_, url) => {
   shell.openExternal(url);
 });
+
+ipcMain.handle('get-desktop-sources', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+    return sources.map(s => ({ id: s.id, name: s.name }));
+  } catch (err) {
+    console.warn('[electron] getSources failed:', err.message);
+    return [];
+  }
+});

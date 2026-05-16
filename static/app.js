@@ -366,10 +366,13 @@ async function toggleSysAudio() {
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
     if (_isElectron) {
-      // Electron: use getUserMedia with chromeMediaSource for loopback audio
+      // Electron: get source ID from main process, then getUserMedia with it
+      const sources = await window.electronAPI.getDesktopSources();
+      const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+      if (!screenSource) { g('audioStatus').textContent = 'no screen source found'; return; }
       sysStream = await navigator.mediaDevices.getUserMedia({
-        audio: { mandatory: { chromeMediaSource: 'desktop' } },
-        video: { mandatory: { chromeMediaSource: 'desktop', minWidth: 1, maxWidth: 1, minHeight: 1, maxHeight: 1 } }
+        audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screenSource.id } },
+        video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screenSource.id, maxWidth: 1, maxHeight: 1 } }
       });
     } else {
       // Browser: use getDisplayMedia with share picker

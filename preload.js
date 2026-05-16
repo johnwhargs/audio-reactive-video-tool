@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openImages: () => ipcRenderer.invoke('open-images'),
   startSpotifyAuth: () => ipcRenderer.invoke('start-spotify-auth'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
   isElectron: true
 });
