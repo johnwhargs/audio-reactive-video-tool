@@ -26,11 +26,24 @@ function createWindow() {
   });
 
   // Allow getDisplayMedia for system audio capture
-  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-      // Grant access to first screen with audio
-      callback({ video: sources[0], audio: 'loopback' });
-    });
+  win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      if (sources.length > 0) {
+        callback({ video: sources[0], audio: 'loopback' });
+      } else {
+        callback({});
+      }
+    } catch (err) {
+      console.warn('[electron] desktopCapturer failed:', err.message);
+      callback({});
+    }
+  });
+
+  // Auto-grant mic permission
+  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = ['media', 'audioCapture', 'display-capture', 'mediaKeySystem'];
+    callback(allowed.includes(permission));
   });
 
   win.loadFile('static/index.html');
@@ -43,6 +56,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   // Register local:// protocol to stream files from disk
+  // Uses ReadableStream so large video files don't load entirely into memory
   protocol.handle('local', (request) => {
     const filePath = decodeURIComponent(request.url.replace('local://', ''));
     const ext = path.extname(filePath).toLowerCase();
@@ -55,8 +69,27 @@ app.whenReady().then(() => {
       '.gif': 'image/gif', '.webp': 'image/webp',
     };
     const mime = mimeTypes[ext] || 'application/octet-stream';
-    const data = fs.readFileSync(filePath);
-    return new Response(data, { headers: { 'Content-Type': mime } });
+    try {
+      const stat = fs.statSync(filePath);
+      const stream = fs.createReadStream(filePath);
+      const readable = new ReadableStream({
+        start(controller) {
+          stream.on('data', chunk => controller.enqueue(chunk));
+          stream.on('end', () => controller.close());
+          stream.on('error', err => controller.error(err));
+        },
+        cancel() { stream.destroy(); }
+      });
+      return new Response(readable, {
+        headers: {
+          'Content-Type': mime,
+          'Content-Length': stat.size.toString(),
+          'Accept-Ranges': 'bytes',
+        }
+      });
+    } catch (err) {
+      return new Response('File not found: ' + filePath, { status: 404 });
+    }
   });
 
   createWindow();
@@ -134,8 +167,10 @@ ipcMain.handle('start-spotify-auth', () => {
       const url = new URL('http://localhost:8888' + req.url);
       const code = url.searchParams.get('code');
       if (code && win) {
+        // Sanitize code to prevent injection
+        const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '');
         win.webContents.executeJavaScript(
-          `window.dispatchEvent(new CustomEvent('spotify-callback', { detail: { code: '${code}' } }))`
+          `window.dispatchEvent(new CustomEvent('spotify-callback', { detail: { code: '${safeCode}' } }))`
         );
       }
       // Shut down after successful callback

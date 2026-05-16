@@ -1407,6 +1407,7 @@ function updateChannelSwitch() {
 let serverAvailable = null;
 
 async function checkServer() {
+  if (_isElectron) { serverAvailable = false; return false; }
   if (serverAvailable !== null) return serverAvailable;
   try {
     const r = await fetch('/preprocess', { method: 'HEAD' });
