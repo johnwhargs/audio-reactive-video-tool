@@ -4,8 +4,9 @@
   "description": "Audio-reactive video tool",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev"
+    "sign": "codesign --sign - --force --deep --entitlements entitlements.plist node_modules/electron/dist/Electron.app",
+    "start": "npm run sign && electron .",
+    "dev": "npm run sign && electron . --dev"
   },
   "devDependencies": {
     "electron": "^35.0.0"
