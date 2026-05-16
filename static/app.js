@@ -1866,7 +1866,7 @@ setDepthDir2 = function(d) {
 // ─── SPOTIFY ────────────────────────────────────────────────────────────────
 const SPOTIFY_CLIENT_ID = 'a8a5fb0a10df43958dd52137e4051344';
 const _isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
-const SPOTIFY_REDIRECT = _isElectron ? 'http://localhost:8888/callback' : window.location.origin + '/callback';
+const SPOTIFY_REDIRECT = _isElectron ? 'http://127.0.0.1:8888/callback' : window.location.origin + '/callback';
 const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state user-read-recently-played';
 
 let spotifyToken = localStorage.getItem('spotify_token');

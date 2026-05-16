@@ -139,7 +139,7 @@ ipcMain.handle('start-spotify-auth', () => {
       res.end();
     }
   });
-  callbackServer.listen(8888, '127.0.0.1');
+  callbackServer.listen(8888, '0.0.0.0');
 });
 
 ipcMain.handle('open-external', (_, url) => {
