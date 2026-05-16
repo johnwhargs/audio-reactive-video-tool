@@ -191,7 +191,6 @@ class CleanerApp(QWidget):
             self.progress_update.emit(i, f'Cleaning {Path(filepath).name}...')
             cmd = [
                 'ffmpeg', '-y', '-i', filepath,
-                '-vf', 'fps=30',
                 '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
                 '-g', '1', '-keyint_min', '1',
                 '-an', output
