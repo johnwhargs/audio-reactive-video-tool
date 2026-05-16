@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, shell, desktopCapturer, session } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -23,6 +23,14 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     }
+  });
+
+  // Allow getDisplayMedia for system audio capture
+  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+      // Grant access to first screen with audio
+      callback({ video: sources[0], audio: 'loopback' });
+    });
   });
 
   win.loadFile('static/index.html');
