@@ -25,17 +25,14 @@ function createWindow() {
     }
   });
 
-  // Allow getDisplayMedia for system audio capture
+  // Allow getDisplayMedia for system audio capture — auto-grant without picker
   win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
       const sources = await desktopCapturer.getSources({ types: ['screen'] });
-      if (sources.length > 0) {
-        callback({ video: sources[0], audio: 'loopback' });
-      } else {
-        callback({});
-      }
+      if (!sources.length) { callback({}); return; }
+      callback({ video: sources[0], audio: 'loopbackWithMute' });
     } catch (err) {
-      console.warn('[electron] desktopCapturer failed:', err.message);
+      console.warn('[electron] desktopCapturer error:', err.message);
       callback({});
     }
   });

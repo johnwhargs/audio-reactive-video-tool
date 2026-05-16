@@ -365,19 +365,12 @@ async function toggleSysAudio() {
   if(sysStream){sysStream.getTracks().forEach(t=>t.stop());sysStream=null;btn.classList.remove('active');btn.textContent='sys';g('audioStatus').textContent='stopped';try{analyser.connect(audioCtx.destination);}catch(e){}return;}
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
-    if (_isElectron) {
-      // Electron: get source ID from main process, then getUserMedia with it
-      const sources = await window.electronAPI.getDesktopSources();
-      const screenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-      if (!screenSource) { g('audioStatus').textContent = 'no screen source found'; return; }
-      sysStream = await navigator.mediaDevices.getUserMedia({
-        audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screenSource.id } },
-        video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: screenSource.id, maxWidth: 1, maxHeight: 1 } }
-      });
-    } else {
-      // Browser: use getDisplayMedia with share picker
-      sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false }, video: true });
-    }
+    // Both Electron and browser use getDisplayMedia
+    // Electron auto-grants via setDisplayMediaRequestHandler in main.js
+    sysStream = await navigator.mediaDevices.getDisplayMedia({
+      audio: { echoCancellation: false, noiseSuppression: false },
+      video: true
+    });
     sysStream.getVideoTracks().forEach(t=>t.stop());
     const tracks=sysStream.getAudioTracks(); if(!tracks.length){g('audioStatus').textContent='no audio — check share audio';sysStream=null;return;}
     const sysSource=audioCtx.createMediaStreamSource(sysStream);
