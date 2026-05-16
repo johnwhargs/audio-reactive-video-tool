@@ -6,7 +6,8 @@
   "scripts": {
     "sign": "codesign --sign - --force --deep --entitlements entitlements.plist node_modules/electron/dist/Electron.app",
     "start": "npm run sign && electron .",
-    "dev": "npm run sign && electron . --dev"
+    "dev": "npm run sign && electron . --dev",
+    "serve": "npx serve static -l 3000 -s"
   },
   "devDependencies": {
     "electron": "^35.0.0"
