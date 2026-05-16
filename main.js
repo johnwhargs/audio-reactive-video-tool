@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, protocol, shell } = require('electron');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
 
 let win;
 let callbackServer = null;
@@ -36,7 +37,18 @@ app.whenReady().then(() => {
   // Register local:// protocol to stream files from disk
   protocol.handle('local', (request) => {
     const filePath = decodeURIComponent(request.url.replace('local://', ''));
-    return require('net').fetch('file://' + filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+      '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska',
+      '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+      '.flac': 'audio/flac', '.aac': 'audio/aac', '.m4a': 'audio/mp4',
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp',
+    };
+    const mime = mimeTypes[ext] || 'application/octet-stream';
+    const data = fs.readFileSync(filePath);
+    return new Response(data, { headers: { 'Content-Type': mime } });
   });
 
   createWindow();
