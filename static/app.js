@@ -365,7 +365,16 @@ async function toggleSysAudio() {
   if(sysStream){sysStream.getTracks().forEach(t=>t.stop());sysStream=null;btn.classList.remove('active');btn.textContent='sys';g('audioStatus').textContent='stopped';try{analyser.connect(audioCtx.destination);}catch(e){}return;}
   try {
     if(!audioCtx){audioCtx=new AudioContext();setupAnalyser();}
-    sysStream=await navigator.mediaDevices.getDisplayMedia({audio:{echoCancellation:false,noiseSuppression:false},video:true});
+    if (_isElectron) {
+      // Electron: use getUserMedia with chromeMediaSource for loopback audio
+      sysStream = await navigator.mediaDevices.getUserMedia({
+        audio: { mandatory: { chromeMediaSource: 'desktop' } },
+        video: { mandatory: { chromeMediaSource: 'desktop', minWidth: 1, maxWidth: 1, minHeight: 1, maxHeight: 1 } }
+      });
+    } else {
+      // Browser: use getDisplayMedia with share picker
+      sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false }, video: true });
+    }
     sysStream.getVideoTracks().forEach(t=>t.stop());
     const tracks=sysStream.getAudioTracks(); if(!tracks.length){g('audioStatus').textContent='no audio — check share audio';sysStream=null;return;}
     const sysSource=audioCtx.createMediaStreamSource(sysStream);
@@ -375,7 +384,7 @@ async function toggleSysAudio() {
     btn.classList.add('active'); btn.textContent='sys on'; g('audioStatus').textContent=tracks[0].label||'system active';
     tracks[0].addEventListener('ended',()=>{sysStream=null;btn.classList.remove('active');btn.textContent='sys';try{analyser.connect(audioCtx.destination);}catch(e){}});
     startLoop();
-  } catch(e){g('audioStatus').textContent=e.name==='NotAllowedError'?'cancelled':'error: '+e.message;}
+  } catch(e){g('audioStatus').textContent=e.name==='NotAllowedError'?'cancelled':'error: '+e.message; console.warn('[sys audio]', e);}
 }
 
 // ─── FILTER / MODE ───────────────────────────────────────────────────────────
