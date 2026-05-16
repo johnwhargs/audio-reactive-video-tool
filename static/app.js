@@ -2510,11 +2510,13 @@ function updateKaraoke() {
   if (!overlay) return;
 
   // Interpolate progress between Spotify polls (3s interval)
+  // Add 500ms lookahead to compensate for poll latency
+  const LYRIC_OFFSET_MS = 500;
   const now = performance.now();
   if (spotifyIsPlaying && _karaokeLastPollTime > 0) {
-    _karaokeProgressMs = spotifyProgressMs + (now - _karaokeLastPollTime);
+    _karaokeProgressMs = spotifyProgressMs + (now - _karaokeLastPollTime) + LYRIC_OFFSET_MS;
   } else {
-    _karaokeProgressMs = spotifyProgressMs;
+    _karaokeProgressMs = spotifyProgressMs + LYRIC_OFFSET_MS;
   }
 
   // Find current line
